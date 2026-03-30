@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 const MENU_ITEMS = [
   { id: 'settings', name: 'Settings', icon: '⚙️' },
   { id: 'quality', name: 'Quality', icon: '📊' },
+  { id: 'size', name: 'Size', icon: '📐' },
   { id: 'queue', name: 'Queue', icon: '📋' },
   { id: 'privacy', name: 'Privacy', icon: '🔒' },
   { id: 'preserve', name: 'Preserve', icon: '💾' },

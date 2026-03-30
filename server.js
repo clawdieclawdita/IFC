@@ -21,6 +21,7 @@ const TEMP_DIR = path.join(__dirname, 'temp');
 const CONVERTED_DIR = path.join(__dirname, 'converted');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const MAX_FILE_AGE_MS = 1000 * 60 * 60;
+const QUALITY_FORMATS = new Set(['jpg', 'webp']);
 
 const SUPPORTED_FORMATS = new Set(['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'webp', 'gif', 'svg']);
 const BMP_MIME_TYPES = new Set(['image/bmp', 'image/x-bmp', 'image/x-ms-bmp']);
@@ -177,6 +178,51 @@ function makeFileName(originalName, extension) {
   return `${base}-${id}.${extension}`;
 }
 
+function parseOptionalNumber(value, label) {
+  if (value == null || value === '') return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    const error = new Error(`${label} must be a number`);
+    error.status = 400;
+    throw error;
+  }
+  return Math.round(numeric);
+}
+
+function parseOptionalBoolean(value, fallback = true) {
+  if (value == null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  return String(value).toLowerCase() === 'true';
+}
+
+function parseConvertOptions(body = {}, targetFormat) {
+  const quality = parseOptionalNumber(body.quality, 'quality');
+  const width = parseOptionalNumber(body.width, 'width');
+  const height = parseOptionalNumber(body.height, 'height');
+  const keepAspectRatio = parseOptionalBoolean(body.keepAspectRatio, true);
+
+  if (quality != null && (quality < 0 || quality > 100)) {
+    const error = new Error('quality must be between 0 and 100');
+    error.status = 400;
+    throw error;
+  }
+
+  for (const [label, value] of [['width', width], ['height', height]]) {
+    if (value != null && (value < 1 || value > 4000)) {
+      const error = new Error(`${label} must be between 1 and 4000`);
+      error.status = 400;
+      throw error;
+    }
+  }
+
+  return {
+    quality: QUALITY_FORMATS.has(targetFormat) ? (quality ?? 85) : null,
+    width,
+    height,
+    keepAspectRatio,
+  };
+}
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => cb(null, makeFileName(file.originalname, 'upload'))
@@ -196,7 +242,7 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, supportedFormats: [...SUPPORTED_FORMATS] });
 });
 
-async function convertImageFile(file, targetFormat) {
+async function convertImageFile(file, targetFormat, options = {}) {
   const format = normalizeFormat(targetFormat);
   validateTargetFormat(format);
 
@@ -204,24 +250,55 @@ async function convertImageFile(file, targetFormat) {
   const outputName = makeFileName(file.originalname, outputExtension);
   const outputPath = path.join(CONVERTED_DIR, outputName);
   const { sharpInput, detectedFormat, usedBmpFallback } = await loadImagePipelineSource(file);
+  const { quality = null, width = null, height = null, keepAspectRatio = true } = options;
+  const metadata = await createSharpPipeline(sharpInput).metadata();
+  const originalWidth = metadata.width || null;
+  const originalHeight = metadata.height || null;
+
+  if ((width != null && originalWidth && width > originalWidth) || (height != null && originalHeight && height > originalHeight)) {
+    const error = new Error('Cannot upscale images above original resolution');
+    error.status = 400;
+    log('Rejected upscale request', {
+      originalName: file.originalname,
+      detectedFormat,
+      requestedWidth: width,
+      requestedHeight: height,
+      originalWidth,
+      originalHeight,
+    });
+    throw error;
+  }
 
   if (format === 'svg') {
-    const pngBuffer = await createSharpPipeline(sharpInput).png().toBuffer();
+    let svgPipeline = createSharpPipeline(sharpInput);
+    if (width || height) {
+      svgPipeline = svgPipeline.resize({ width: width || null, height: height || null, fit: 'inside', withoutEnlargement: true });
+    }
+    const pngBuffer = await svgPipeline.png().toBuffer();
     const metadata = await sharp(pngBuffer).metadata();
     const safeWidth = metadata.width || 512;
     const safeHeight = metadata.height || 512;
     const base64 = pngBuffer.toString('base64');
     const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">\n  <image href="data:image/png;base64,${base64}" width="${safeWidth}" height="${safeHeight}" />\n</svg>\n`;
     await fsp.writeFile(outputPath, svg, 'utf8');
-    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback });
+    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback, quality, width, height, keepAspectRatio, originalWidth, originalHeight });
     return outputName;
   }
 
   let pipeline = createSharpPipeline(sharpInput);
 
+  if (width || height) {
+    pipeline = pipeline.resize({
+      width: width || null,
+      height: height || null,
+      fit: keepAspectRatio ? 'inside' : 'fill',
+      withoutEnlargement: true,
+    });
+  }
+
   switch (format) {
     case 'jpg':
-      pipeline = pipeline.jpeg({ quality: 90 });
+      pipeline = pipeline.jpeg({ quality: quality ?? 90 });
       await pipeline.toFile(outputPath);
       break;
     case 'png':
@@ -235,11 +312,11 @@ async function convertImageFile(file, targetFormat) {
       break;
     }
     case 'tiff':
-      pipeline = pipeline.tiff({ quality: 90 });
+      pipeline = pipeline.tiff({ quality: quality ?? 90 });
       await pipeline.toFile(outputPath);
       break;
     case 'webp':
-      pipeline = pipeline.webp({ quality: 90 });
+      pipeline = pipeline.webp({ quality: quality ?? 90 });
       await pipeline.toFile(outputPath);
       break;
     case 'gif':
@@ -250,7 +327,7 @@ async function convertImageFile(file, targetFormat) {
       throw new Error(`Unsupported conversion pipeline for format: ${format}`);
   }
 
-  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback });
+  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback, quality, width, height, keepAspectRatio, originalWidth, originalHeight });
   return outputName;
 }
 
@@ -261,11 +338,23 @@ app.post('/api/convert', upload.single('image'), async (req, res, next) => {
     }
 
     const targetFormat = normalizeFormat(req.body.targetFormat);
-    const outputName = await convertImageFile(req.file, targetFormat);
+    const options = parseConvertOptions(req.body, targetFormat);
+    log('Convert request received', {
+      input: req.file.originalname,
+      targetFormat,
+      quality: options.quality,
+      width: options.width,
+      height: options.height,
+      keepAspectRatio: options.keepAspectRatio,
+    });
+
+    const outputName = await convertImageFile(req.file, targetFormat, options);
+    const outputPath = path.join(CONVERTED_DIR, outputName);
+    const outputStats = await fsp.stat(outputPath);
     const convertedUrl = `${getBaseUrl(req)}/converted/${outputName}`;
 
-    log('Single convert success', { input: req.file.originalname, targetFormat, outputName });
-    res.json({ convertedUrl });
+    log('Single convert success', { input: req.file.originalname, targetFormat, outputName, outputSize: outputStats.size });
+    res.json({ convertedUrl, outputSize: outputStats.size });
   } catch (error) {
     next(error);
   }
@@ -286,21 +375,30 @@ app.post('/api/convert/batch', upload.any(), async (req, res, next) => {
     }
 
     const targetFormat = normalizeFormat(req.body.targetFormat);
+    const options = parseConvertOptions(req.body, targetFormat);
     const outputNames = await Promise.all(
-      files.map((file) => convertImageFile(file, targetFormat))
+      files.map((file) => convertImageFile(file, targetFormat, options))
     );
 
     const convertedUrls = outputNames.map((name) => `${getBaseUrl(req)}/converted/${name}`);
-    const responseFiles = outputNames.map((outputName, index) => ({
-      originalName: files[index].originalname,
-      convertedName: outputName,
-      downloadUrl: convertedUrls[index]
+    const responseFiles = await Promise.all(outputNames.map(async (outputName, index) => {
+      const outputStats = await fsp.stat(path.join(CONVERTED_DIR, outputName));
+      return {
+        originalName: files[index].originalname,
+        convertedName: outputName,
+        downloadUrl: convertedUrls[index],
+        outputSize: outputStats.size,
+      };
     }));
 
     log('Batch convert success', {
       count: files.length,
       targetFormat,
-      fieldNames: [...new Set(files.map((file) => file.fieldname))]
+      fieldNames: [...new Set(files.map((file) => file.fieldname))],
+      quality: options.quality,
+      width: options.width,
+      height: options.height,
+      keepAspectRatio: options.keepAspectRatio,
     });
     res.json({ convertedUrls, files: responseFiles });
   } catch (error) {

@@ -13,6 +13,27 @@ const EXTENSION_ALIASES = {
   tif: 'tiff',
 };
 
+const QUALITY_FORMATS = new Set(['jpg', 'webp']);
+const QUALITY_DEFAULT = 85;
+const STORAGE_KEYS = {
+  menuExpanded: 'image-converter.menuExpanded',
+  activePanel: 'image-converter.activePanel',
+  quality: 'image-converter.quality',
+  width: 'image-converter.width',
+  height: 'image-converter.height',
+  keepAspectRatio: 'image-converter.keepAspectRatio',
+};
+
+const FORMAT_SIZE_MULTIPLIERS = {
+  jpg: 0.82,
+  png: 1.15,
+  bmp: 2.35,
+  tiff: 1.6,
+  webp: 0.68,
+  gif: 0.92,
+  svg: 0.75,
+};
+
 const base64ToBlob = (base64, mimeType) => {
   const byteString = atob(base64);
   const bytes = new Uint8Array(byteString.length);
@@ -32,9 +53,96 @@ const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 const SWIPE_DURATION_MS = 1200;
 const ARRIVAL_DURATION_MS = 280;
 const MAX_VISIBLE_SWIPE_STACK = 4;
-const STORAGE_KEYS = {
-  menuExpanded: 'image-converter.menuExpanded',
-  activePanel: 'image-converter.activePanel',
+
+const parseNumberStorage = (key) => {
+  if (typeof window === 'undefined') return null;
+  const value = window.localStorage.getItem(key);
+  if (value === null || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const parseBooleanStorage = (key, fallback) => {
+  if (typeof window === 'undefined') return fallback;
+  const value = window.localStorage.getItem(key);
+  if (value === null) return fallback;
+  return value === 'true';
+};
+
+const clampDimension = (value, max = 4000) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  const cappedMax = Math.max(1, Math.min(4000, Math.round(max || 4000)));
+  return Math.max(1, Math.min(cappedMax, Math.round(numeric)));
+};
+
+const readImageDimensions = (file) => new Promise((resolve) => {
+  if (!file?.type?.startsWith('image/')) {
+    resolve({ originalWidth: 0, originalHeight: 0 });
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+
+  image.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    resolve({ originalWidth: image.naturalWidth || 0, originalHeight: image.naturalHeight || 0 });
+  };
+
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    resolve({ originalWidth: 0, originalHeight: 0 });
+  };
+
+  image.src = objectUrl;
+});
+
+const getMinOriginalDimensions = (files) => {
+  const imageFiles = files.filter((file) => Number(file.originalWidth) > 0 && Number(file.originalHeight) > 0);
+  if (!imageFiles.length) return { originalSize: 0, originalWidth: 0, originalHeight: 0 };
+
+  return imageFiles.reduce((min, file) => ({
+    originalSize: Math.min(min.originalSize, file.size || min.originalSize || 0),
+    originalWidth: Math.min(min.originalWidth, file.originalWidth),
+    originalHeight: Math.min(min.originalHeight, file.originalHeight),
+  }), {
+    originalSize: imageFiles[0].size || 0,
+    originalWidth: imageFiles[0].originalWidth,
+    originalHeight: imageFiles[0].originalHeight,
+  });
+};
+
+const formatBytes = (bytes) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+};
+
+const estimateOutputSize = ({
+  originalSize = 0,
+  originalWidth,
+  originalHeight,
+  width,
+  height,
+  quality,
+  targetFormat,
+}) => {
+  if (!originalSize) return 0;
+
+  const safeOriginalWidth = Number(originalWidth) || 1;
+  const safeOriginalHeight = Number(originalHeight) || 1;
+  const safeWidth = Number(width) || safeOriginalWidth;
+  const safeHeight = Number(height) || safeOriginalHeight;
+  const areaRatio = Math.max(0.05, (safeWidth * safeHeight) / (safeOriginalWidth * safeOriginalHeight));
+  const formatMultiplier = FORMAT_SIZE_MULTIPLIERS[targetFormat] ?? 1;
+  const qualityRatio = QUALITY_FORMATS.has(targetFormat)
+    ? Math.max(0.12, Number(quality ?? QUALITY_DEFAULT) / 100)
+    : 1;
+
+  return Math.max(1024, Math.round(originalSize * areaRatio * formatMultiplier * qualityRatio));
 };
 
 function SwipePreview({ file }) {
@@ -81,6 +189,11 @@ export default function App() {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(STORAGE_KEYS.activePanel) || null;
   });
+  const [quality, setQuality] = useState(() => parseNumberStorage(STORAGE_KEYS.quality) ?? QUALITY_DEFAULT);
+  const [resizeWidth, setResizeWidth] = useState(() => parseNumberStorage(STORAGE_KEYS.width));
+  const [resizeHeight, setResizeHeight] = useState(() => parseNumberStorage(STORAGE_KEYS.height));
+  const [keepAspectRatio, setKeepAspectRatio] = useState(() => parseBooleanStorage(STORAGE_KEYS.keepAspectRatio, true));
+  const [imageMetrics, setImageMetrics] = useState({ originalSize: 0, originalWidth: 0, originalHeight: 0 });
 
   const formatValidation = useMemo(() => {
     const sameFormatFiles = files.filter((file) => getFileExtension(file) === targetFormat);
@@ -126,16 +239,164 @@ export default function App() {
     window.localStorage.removeItem(STORAGE_KEYS.activePanel);
   }, [activePanel]);
 
-  const addFiles = (incomingFiles) => {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.quality, String(quality));
+  }, [quality]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (resizeWidth == null) {
+      window.localStorage.removeItem(STORAGE_KEYS.width);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.width, String(resizeWidth));
+  }, [resizeWidth]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (resizeHeight == null) {
+      window.localStorage.removeItem(STORAGE_KEYS.height);
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.height, String(resizeHeight));
+  }, [resizeHeight]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.keepAspectRatio, String(keepAspectRatio));
+  }, [keepAspectRatio]);
+
+  useEffect(() => {
+    setImageMetrics(getMinOriginalDimensions(files));
+  }, [files]);
+
+  useEffect(() => {
+    const maxAllowedWidth = imageMetrics.originalWidth || 4000;
+    const maxAllowedHeight = imageMetrics.originalHeight || 4000;
+
+    if (resizeWidth != null) {
+      const cappedWidth = clampDimension(resizeWidth, maxAllowedWidth);
+      if (cappedWidth !== resizeWidth) {
+        setResizeWidth(cappedWidth);
+      }
+    }
+
+    if (resizeHeight != null) {
+      const cappedHeight = clampDimension(resizeHeight, maxAllowedHeight);
+      if (cappedHeight !== resizeHeight) {
+        setResizeHeight(cappedHeight);
+      }
+    }
+  }, [imageMetrics.originalHeight, imageMetrics.originalWidth, resizeHeight, resizeWidth]);
+
+  useEffect(() => {
+    const originalWidth = imageMetrics.originalWidth || null;
+    const originalHeight = imageMetrics.originalHeight || null;
+
+    if (!originalWidth || !originalHeight || !keepAspectRatio) return;
+
+    if (resizeWidth != null && resizeHeight == null) {
+      setResizeHeight(clampDimension((resizeWidth / originalWidth) * originalHeight, originalHeight));
+      return;
+    }
+
+    if (resizeHeight != null && resizeWidth == null) {
+      setResizeWidth(clampDimension((resizeHeight / originalHeight) * originalWidth, originalWidth));
+    }
+  }, [imageMetrics.originalHeight, imageMetrics.originalWidth, keepAspectRatio, resizeHeight, resizeWidth]);
+
+  const estimatedSizeBytes = useMemo(
+    () => estimateOutputSize({
+      originalSize: imageMetrics.originalSize,
+      originalWidth: imageMetrics.originalWidth,
+      originalHeight: imageMetrics.originalHeight,
+      width: resizeWidth,
+      height: resizeHeight,
+      quality,
+      targetFormat,
+    }),
+    [imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, quality, resizeHeight, resizeWidth, targetFormat],
+  );
+
+  const settingsState = useMemo(() => ({
+    quality,
+    width: resizeWidth,
+    height: resizeHeight,
+    keepAspectRatio,
+    originalSize: imageMetrics.originalSize,
+    originalWidth: imageMetrics.originalWidth,
+    originalHeight: imageMetrics.originalHeight,
+    maxAllowedWidth: imageMetrics.originalWidth,
+    maxAllowedHeight: imageMetrics.originalHeight,
+    estimatedSizeBytes,
+    estimatedSizeLabel: formatBytes(estimatedSizeBytes),
+    qualityAppliesToTarget: QUALITY_FORMATS.has(targetFormat),
+    targetFormat,
+  }), [estimatedSizeBytes, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, quality, resizeHeight, resizeWidth, targetFormat]);
+
+  const handleSettingsChange = (key, value) => {
+    if (key === 'quality') {
+      setQuality(Math.max(0, Math.min(100, Number(value) || 0)));
+      return;
+    }
+
+    if (key === 'keepAspectRatio') {
+      const nextKeepAspectRatio = Boolean(value);
+      setKeepAspectRatio(nextKeepAspectRatio);
+      if (nextKeepAspectRatio && imageMetrics.originalWidth && imageMetrics.originalHeight) {
+        if (resizeWidth != null) {
+          setResizeHeight(clampDimension((resizeWidth / imageMetrics.originalWidth) * imageMetrics.originalHeight, imageMetrics.originalHeight));
+        } else if (resizeHeight != null) {
+          setResizeWidth(clampDimension((resizeHeight / imageMetrics.originalHeight) * imageMetrics.originalWidth, imageMetrics.originalWidth));
+        }
+      }
+      return;
+    }
+
+    if (key === 'width') {
+      if (value == null) {
+        setResizeWidth(null);
+        if (keepAspectRatio) setResizeHeight(null);
+        return;
+      }
+
+      const safeWidth = clampDimension(value, imageMetrics.originalWidth || 4000);
+      setResizeWidth(safeWidth);
+      if (keepAspectRatio && safeWidth && imageMetrics.originalWidth && imageMetrics.originalHeight) {
+        setResizeHeight(clampDimension((safeWidth / imageMetrics.originalWidth) * imageMetrics.originalHeight, imageMetrics.originalHeight));
+      }
+      return;
+    }
+
+    if (key === 'height') {
+      if (value == null) {
+        setResizeHeight(null);
+        if (keepAspectRatio) setResizeWidth(null);
+        return;
+      }
+
+      const safeHeight = clampDimension(value, imageMetrics.originalHeight || 4000);
+      setResizeHeight(safeHeight);
+      if (keepAspectRatio && safeHeight && imageMetrics.originalWidth && imageMetrics.originalHeight) {
+        setResizeWidth(clampDimension((safeHeight / imageMetrics.originalHeight) * imageMetrics.originalWidth, imageMetrics.originalWidth));
+      }
+    }
+  };
+
+  const addFiles = async (incomingFiles) => {
     setErrorMessage('');
     setConvertedFiles([]);
     setConvertingMap({});
     setConvertingProgress({});
     setActiveTransfers([]);
     setProgress(0);
+
+    const enrichedIncomingFiles = await Promise.all(incomingFiles.map(async (file) => Object.assign(file, await readImageDimensions(file))));
+
     setFiles((current) => {
       const deduped = new Map(current.map((file) => [getFileKey(file), file]));
-      incomingFiles.forEach((file) => {
+      enrichedIncomingFiles.forEach((file) => {
         deduped.set(getFileKey(file), file);
       });
       return Array.from(deduped.values());
@@ -253,7 +514,14 @@ export default function App() {
           setConvertingMap((current) => ({ ...current, [fileKey]: { phase: 'transitioning' } }));
           setConvertingProgress((current) => ({ ...current, [fileKey]: 62 }));
 
-          const converted = await convertSingle({ file, targetFormat });
+          const converted = await convertSingle({
+            file,
+            targetFormat,
+            quality,
+            width: resizeWidth != null ? clampDimension(resizeWidth, file.originalWidth || imageMetrics.originalWidth || 4000) : null,
+            height: resizeHeight != null ? clampDimension(resizeHeight, file.originalHeight || imageMetrics.originalHeight || 4000) : null,
+            keepAspectRatio,
+          });
 
           setConvertingMap((current) => ({ ...current, [fileKey]: { phase: 'arrived' } }));
           setConvertedFiles((current) => [...current, converted]);
@@ -385,7 +653,12 @@ export default function App() {
           onToggleExpanded={handleToggleMenu}
           onSelectPanel={handleSelectPanel}
         />
-        <SettingsPanel activePanel={activePanel} onClose={handleClosePanel} />
+        <SettingsPanel
+          activePanel={activePanel}
+          onClose={handleClosePanel}
+          settings={settingsState}
+          onChange={handleSettingsChange}
+        />
       </div>
 
       <main className="app-card app-card--split app-card--with-menu">

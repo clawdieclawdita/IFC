@@ -71,3 +71,30 @@ When adding future image-format E2E coverage, import shared helpers and upload c
 - Tags: playwright, e2e, fixtures, conversion
 
 ---
+## [LRN-20260330-001] best_practice
+
+**Logged**: 2026-03-30T03:20:00Z
+**Priority**: medium
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+For resize UIs, cap selectable dimensions to the smallest uploaded original image and mirror the same limit on the server.
+
+### Details
+This bug existed because the UI tracked only the first file's dimensions and allowed sliders up to 4000px. The safer pattern is to store original dimensions per uploaded file, compute the smallest width/height across the batch, cap all UI state and preview calculations to those values, disable oversize presets, and keep backend validation as a final guardrail.
+
+### Suggested Action
+Reuse this pattern for any batch image resize feature: batch minimum dimensions in client state, capped settings sent to API, and server rejection for any upscale attempt.
+
+### Metadata
+- Source: conversation
+- Related Files: src/App.jsx,src/components/SizePanel.jsx,server.js
+- Tags: resize,validation,ux,image-processing
+- Pattern-Key: harden.image_resize_no_upscale
+
+### Resolution
+- **Resolved**: 2026-03-30T03:20:00Z
+- **Notes**: Implemented smallest-original-dimension caps in UI and API.
+
+---

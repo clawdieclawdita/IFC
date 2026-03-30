@@ -1,7 +1,39 @@
 import { MENU_ITEMS } from './MenuBar';
+import { QualityPanel } from './QualityPanel';
+import { SizePanel } from './SizePanel';
 
-export function SettingsPanel({ activePanel, onClose }) {
+const PANEL_COPY = {
+  settings: 'Global app settings will land here in a future phase.',
+  queue: 'Queue controls are reserved for upcoming batching features.',
+  privacy: 'Privacy controls are reserved for a future release.',
+  preserve: 'Metadata preservation controls are reserved for a future release.',
+  theme: 'Theme customization is planned for a future phase.',
+  progress: 'Detailed progress controls are planned for a future phase.',
+  advanced: 'Advanced conversion controls are planned for a future phase.',
+  pwa: 'Install and offline options are planned for a future phase.',
+};
+
+export function SettingsPanel({ activePanel, onClose, settings, onChange }) {
   const activeItem = MENU_ITEMS.find((item) => item.id === activePanel);
+
+  const renderContent = () => {
+    if (activePanel === 'quality') {
+      return <QualityPanel settings={settings} onChange={onChange} />;
+    }
+
+    if (activePanel === 'size') {
+      return <SizePanel settings={settings} onChange={onChange} />;
+    }
+
+    return (
+      <div className="settings-panel__content">
+        <h3>{activeItem?.name || 'Feature panel'}</h3>
+        <p className="settings-panel__description">
+          {PANEL_COPY[activePanel] || 'Feature coming in a future phase.'}
+        </p>
+      </div>
+    );
+  };
 
   return (
     <div className={`settings-panel ${activePanel ? 'visible' : 'hidden'}`} role="presentation">
@@ -18,15 +50,11 @@ export function SettingsPanel({ activePanel, onClose }) {
         </button>
 
         <div className="panel-content">
-          <p className="settings-panel__eyebrow">Phase 1 foundation</p>
+          <p className="settings-panel__eyebrow">Phase 2 controls</p>
           <h2 id="settings-panel-title">
             {activeItem ? `${activeItem.icon} ${activeItem.name}` : 'Feature panel'}
           </h2>
-          <p>
-            {activeItem
-              ? `${activeItem.name} is wired into the menu system and ready for detailed controls in Phase 2.`
-              : 'Feature coming in Phase 2...'}
-          </p>
+          {renderContent()}
         </div>
       </section>
     </div>
