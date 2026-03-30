@@ -6,6 +6,7 @@ import { MenuBar } from './components/MenuBar';
 import { OfflineBadge } from './components/OfflineBadge';
 import ProgressBar from './components/ProgressBar';
 import QueuePanel from './components/QueuePanel';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { SettingsPanel } from './components/SettingsPanel';
 import UploadZone from './components/UploadZone';
 import { convertSingle, createZip, triggerDownload } from './lib/api';
@@ -19,6 +20,7 @@ const QUALITY_FORMATS = new Set(['jpg', 'webp']);
 const QUALITY_DEFAULT = 85;
 const STORAGE_KEYS = {
   activePanel: 'image-converter.activePanel',
+  menuCollapsed: 'image-converter.menuCollapsed',
   quality: 'image-converter.quality',
   width: 'image-converter.width',
   height: 'image-converter.height',
@@ -29,6 +31,8 @@ const STORAGE_KEYS = {
   filenameConvention: 'image-converter.filenameConvention',
   customFilenamePattern: 'image-converter.customFilenamePattern',
   preserveFolderStructure: 'image-converter.preserveFolderStructure',
+  darkMode: 'image-converter.darkMode',
+  reducedMotion: 'image-converter.reducedMotion',
   queue: 'image-converter.queue',
 };
 
@@ -88,6 +92,15 @@ const parseBooleanStorage = (key, fallback) => {
   const value = window.localStorage.getItem(key);
   if (value === null) return fallback;
   return value === 'true';
+};
+
+const parseOptionalBooleanStorage = (key) => {
+  if (typeof window === 'undefined') return null;
+  const value = window.localStorage.getItem(key);
+  if (value === null || value === 'null') return null;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
 };
 
 const clampDimension = (value, max = 4000) => {
@@ -246,6 +259,41 @@ function SwipePreview({ file }) {
   return <img src={src} alt={file.name} />;
 }
 
+function DarkModeToggle({ darkMode, resolvedDarkMode, onChange }) {
+  const currentMode = darkMode === null ? 'auto' : darkMode ? 'dark' : 'light';
+  const nextMode = currentMode === 'light' ? 'auto' : currentMode === 'auto' ? 'dark' : 'light';
+  const icon = currentMode === 'dark' ? '🌙' : currentMode === 'auto' ? '🌗' : '☀️';
+  const label = currentMode === 'dark'
+    ? 'Dark mode enabled. Click to switch to auto theme.'
+    : currentMode === 'auto'
+      ? `Auto theme enabled (${resolvedDarkMode ? 'system dark' : 'system light'}). Click to switch to dark mode.`
+      : 'Light mode enabled. Click to switch to auto theme.';
+
+  const handleClick = () => {
+    if (nextMode === 'auto') {
+      onChange('darkMode', 'auto');
+      return;
+    }
+
+    onChange('darkMode', nextMode === 'dark');
+  };
+
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      aria-label={label}
+      aria-pressed={currentMode === 'dark'}
+      data-theme-mode={currentMode}
+      onClick={handleClick}
+      title={label}
+    >
+      <span className="theme-toggle__icon" aria-hidden="true">{icon}</span>
+      <span className="theme-toggle__label">Theme</span>
+    </button>
+  );
+}
+
 export default function App() {
   const [files, setFiles] = useState([]);
   const [targetFormat, setTargetFormat] = useState('png');
@@ -264,6 +312,7 @@ export default function App() {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(STORAGE_KEYS.activePanel) || null;
   });
+  const [menuCollapsed, setMenuCollapsed] = useState(() => parseBooleanStorage(STORAGE_KEYS.menuCollapsed, false));
   const [quality, setQuality] = useState(() => parseNumberStorage(STORAGE_KEYS.quality) ?? QUALITY_DEFAULT);
   const [resizeWidth, setResizeWidth] = useState(() => parseNumberStorage(STORAGE_KEYS.width));
   const [resizeHeight, setResizeHeight] = useState(() => parseNumberStorage(STORAGE_KEYS.height));
@@ -280,6 +329,11 @@ export default function App() {
     return window.localStorage.getItem(STORAGE_KEYS.customFilenamePattern) || '';
   });
   const [preserveFolderStructure, setPreserveFolderStructure] = useState(() => parseBooleanStorage(STORAGE_KEYS.preserveFolderStructure, false));
+  const [darkMode, setDarkMode] = useState(() => parseOptionalBooleanStorage(STORAGE_KEYS.darkMode));
+  const [reducedMotion, setReducedMotion] = useState(() => parseOptionalBooleanStorage(STORAGE_KEYS.reducedMotion));
+  const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false));
+  const [systemPrefersReducedMotion, setSystemPrefersReducedMotion] = useState(() => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false));
   const [imageMetrics, setImageMetrics] = useState({ originalSize: 0, originalWidth: 0, originalHeight: 0 });
 
   const pausedRef = useRef(paused);
@@ -353,6 +407,11 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.menuCollapsed, String(menuCollapsed));
+  }, [menuCollapsed]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     window.localStorage.setItem(STORAGE_KEYS.quality, String(quality));
   }, [quality]);
 
@@ -408,6 +467,104 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(STORAGE_KEYS.preserveFolderStructure, String(preserveFolderStructure));
   }, [preserveFolderStructure]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+
+    const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+    const motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    const handleDarkChange = (event) => setSystemPrefersDark(event.matches);
+    const handleMotionChange = (event) => setSystemPrefersReducedMotion(event.matches);
+
+    setSystemPrefersDark(darkMedia.matches);
+    setSystemPrefersReducedMotion(motionMedia.matches);
+
+    darkMedia.addEventListener('change', handleDarkChange);
+    motionMedia.addEventListener('change', handleMotionChange);
+
+    return () => {
+      darkMedia.removeEventListener('change', handleDarkChange);
+      motionMedia.removeEventListener('change', handleMotionChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.darkMode, String(darkMode));
+  }, [darkMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.reducedMotion, String(reducedMotion));
+  }, [reducedMotion]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const resolvedTheme = darkMode === null ? (systemPrefersDark ? 'dark' : 'light') : (darkMode ? 'dark' : 'light');
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme = resolvedTheme;
+  }, [darkMode, systemPrefersDark]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const shouldReduceMotion = reducedMotion === null ? systemPrefersReducedMotion : reducedMotion;
+    document.body.classList.toggle('reduced-motion', shouldReduceMotion);
+  }, [reducedMotion, systemPrefersReducedMotion]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const isEditableTarget = (target) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tagName = target.tagName.toLowerCase();
+      return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+    };
+
+    const panelShortcuts = ['settings', 'quality', 'size', 'queue', 'privacy', 'filename', 'progress', 'advanced'];
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        if (isKeyboardShortcutsOpen) {
+          setIsKeyboardShortcutsOpen(false);
+          return;
+        }
+
+        if (activePanel) {
+          setActivePanel(null);
+        }
+        return;
+      }
+
+      const editableTarget = isEditableTarget(event.target);
+      const lowerKey = event.key.toLowerCase();
+
+      if ((event.metaKey || event.ctrlKey) && lowerKey === 'k') {
+        event.preventDefault();
+        setIsKeyboardShortcutsOpen(true);
+        return;
+      }
+
+      if (editableTarget) return;
+
+      if (event.key === '?' || (event.shiftKey && event.key === '/')) {
+        event.preventDefault();
+        setIsKeyboardShortcutsOpen(true);
+        return;
+      }
+
+      if (/^[1-8]$/.test(event.key)) {
+        event.preventDefault();
+        const panelId = panelShortcuts[Number(event.key) - 1];
+        setActivePanel((current) => (current === panelId ? null : panelId));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activePanel, isKeyboardShortcutsOpen]);
 
   useEffect(() => {
     if (!autoClearOnExit || typeof window === 'undefined') return undefined;
@@ -566,7 +723,11 @@ export default function App() {
     filenameConvention,
     customFilenamePattern,
     preserveFolderStructure,
-  }), [autoClearOnExit, customFilenamePattern, estimatedSizeBytes, filenameConvention, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, preserveFolderStructure, preserveMetadata, quality, resizeHeight, resizeWidth, stripMetadata, targetFormat]);
+    darkMode,
+    reducedMotion,
+    resolvedDarkMode: darkMode === null ? systemPrefersDark : darkMode,
+    resolvedReducedMotion: reducedMotion === null ? systemPrefersReducedMotion : reducedMotion,
+  }), [autoClearOnExit, customFilenamePattern, darkMode, estimatedSizeBytes, filenameConvention, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, preserveFolderStructure, preserveMetadata, quality, reducedMotion, resizeHeight, resizeWidth, stripMetadata, systemPrefersDark, systemPrefersReducedMotion, targetFormat]);
 
   const handleSettingsChange = (key, value) => {
     if (key === 'quality') {
@@ -618,6 +779,16 @@ export default function App() {
 
     if (key === 'preserveFolderStructure') {
       setPreserveFolderStructure(Boolean(value));
+      return;
+    }
+
+    if (key === 'darkMode') {
+      setDarkMode(value === 'auto' ? null : Boolean(value));
+      return;
+    }
+
+    if (key === 'reducedMotion') {
+      setReducedMotion(value === 'auto' ? null : Boolean(value));
       return;
     }
 
@@ -774,6 +945,11 @@ export default function App() {
 
   const handleSelectPanel = (panelId) => {
     setActivePanel((current) => (current === panelId ? null : panelId));
+    setMenuCollapsed(false);
+  };
+
+  const handleToggleMenuCollapsed = () => {
+    setMenuCollapsed((current) => !current);
   };
 
   const handleClosePanel = () => {
@@ -961,18 +1137,32 @@ export default function App() {
     <div className="app-shell">
       <div className="background-orb background-orb--left" />
       <div className="background-orb background-orb--right" />
-      <OfflineBadge />
+      <div className="top-right-controls" aria-label="Status and theme controls">
+        <OfflineBadge />
+        <DarkModeToggle
+          darkMode={darkMode}
+          resolvedDarkMode={darkMode === null ? systemPrefersDark : darkMode}
+          onChange={handleSettingsChange}
+        />
+      </div>
 
       <div className="app-top-chrome">
         <MenuBar
           activePanel={activePanel}
           onSelectPanel={handleSelectPanel}
+          collapsed={menuCollapsed}
+          onToggleCollapsed={handleToggleMenuCollapsed}
         />
         <SettingsPanel
           activePanel={activePanel}
           onClose={handleClosePanel}
           settings={settingsState}
           onChange={handleSettingsChange}
+          onOpenKeyboardShortcuts={() => setIsKeyboardShortcutsOpen(true)}
+        />
+        <KeyboardShortcutsModal
+          isOpen={isKeyboardShortcutsOpen}
+          onClose={() => setIsKeyboardShortcutsOpen(false)}
         />
       </div>
 

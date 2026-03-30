@@ -5,16 +5,27 @@ const MENU_ITEMS = [
   { id: 'queue', name: 'Queue', icon: '📋' },
   { id: 'privacy', name: 'Privacy', icon: '🔒' },
   { id: 'filename', name: 'Filename', icon: '📝' },
-  { id: 'theme', name: 'Theme', icon: '🌙' },
   { id: 'progress', name: 'Progress', icon: '📈' },
   { id: 'advanced', name: 'Advanced', icon: '⚡' },
   { id: 'pwa', name: 'PWA', icon: '📱' },
 ];
 
-export function MenuBar({ activePanel, onSelectPanel }) {
+export function MenuBar({ activePanel, onSelectPanel, collapsed = false, onToggleCollapsed }) {
   return (
-    <header className="menu-bar">
+    <header className={`menu-bar ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div className="menu-bar__inner">
+        <button
+          type="button"
+          className="menu-toggle"
+          onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-controls="top-menu-items"
+          aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}
+          title={collapsed ? 'Expand menu' : 'Collapse menu'}
+        >
+          {collapsed ? '☰' : '✕'}
+        </button>
+
         <nav
           id="top-menu-items"
           className="menu-items"
