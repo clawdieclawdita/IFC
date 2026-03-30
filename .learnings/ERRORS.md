@@ -91,3 +91,65 @@ When validating behavior changes against a shared host, allow the Playwright bas
 - Related Files: playwright.config.ts, e2e/menu-system.spec.ts, src/App.jsx
 
 ---
+## [ERR-20260330-001] shell_tooling
+
+**Logged**: 2026-03-30T10:19:21-03:00
+**Priority**: medium
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+ was not available in the container, so codebase search needed a  fallback.
+
+### Error
+
+
+### Context
+- Command/operation attempted: 
+- Environment details: project shell on Linux workspace
+
+### Suggested Fix
+Prefer  as a portable fallback when ripgrep is unavailable.
+
+### Metadata
+- Reproducible: yes
+- Related Files: src/components/MenuBar.jsx,src/styles.css
+
+### Resolution
+- **Resolved**: 2026-03-30T10:19:21-03:00
+- **Commit/PR**: local workspace change
+- **Notes**: Switched to  for code search and continued successfully.
+
+---
+## [ERR-20260330-001] shell_tooling
+
+**Logged**: 2026-03-30T10:19:37-03:00
+**Priority**: medium
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+`rg` was not available in the container, so codebase search needed a `grep -RIn` fallback.
+
+### Error
+```
+/bin/bash: line 1: rg: command not found
+```
+
+### Context
+- Command/operation attempted: `rg -n "Panels ready|menu-items|menu-item|MenuBar" src`
+- Environment details: project shell on Linux workspace
+
+### Suggested Fix
+Prefer `grep -RIn` as a portable fallback when ripgrep is unavailable.
+
+### Metadata
+- Reproducible: yes
+- Related Files: src/components/MenuBar.jsx,src/styles.css
+
+### Resolution
+- **Resolved**: 2026-03-30T10:19:37-03:00
+- **Commit/PR**: local workspace change
+- **Notes**: Switched to `grep -RIn` for code search and continued successfully.
+
+---

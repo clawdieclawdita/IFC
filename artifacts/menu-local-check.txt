@@ -1,0 +1,103 @@
+URL: http://192.168.1.200:4444
+badgeText: 🔒
+OFFLINE
+menuToggleCount: 1
+menuItemsCount: 10
+--- BODY TEXT ---
+🔒
+OFFLINE
+▼
+Menu
+Panels ready
+⚙️
+Settings
+📊
+Quality
+📐
+Size
+📋
+Queue
+🔒
+Privacy
+💾
+Preserve
+🌙
+Theme
+📈
+Progress
+⚡
+Advanced
+📱
+PWA
+
+IMAGE CONVERTER
+
+Image Format Converter
+
+Drag files into the upload zone, choose a target format, then convert and download the finished results.
+
+Drop your images here
+
+Add files, reorder the queue, and review progress in the same panel.
+
+0 total
+⬆
+Drop your images here
+
+Drag and drop JPG, PNG, BMP, TIFF, WEBP, GIF, or SVG files.
+
+Browse files
+0 of 0 converted
+0 pending
+No images uploaded yet
+
+Your uploaded files will appear here with live conversion status.
+
+Drag files into the upload area to populate the queue.
+
+Converted images
+
+Finished files land on the right and can be downloaded together as separate files or as a ZIP.
+
+0 ready
+INPUT
+PNG
+Download All
+Download all as ZIP
+Clear converted
+
+Converted images will appear here after the conversion finishes.
+
+Flip images from the upload lane into the converted lane.
+
+PNG
+JPG
+BMP
+TIFF
+WEBP
+GIF
+SVG
+
+QUEUE
+
+0 of 0 converted
+0 pending
+0 processing
+Ready
+Pause
+UPLOAD
+RESULTS
+⇢
+Convert images
+Upload images to begin
+Clear all
+--- HTML SNIPPET ---
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Converter</title>
+    <script type="module" crossorigin="" src="/assets/index-Blu_cWtT.js"></script>
+    <link rel="stylesheet" crossorigin="" href="/assets/index-C5RJb5rF.css">
+  </head>
+  <body>
+    <div id="root"><div class="app-shell"><div class="background-orb background-orb--left"></div><div class="background-orb background-orb--right"></div><div class="offline-badge" aria-label="App is running offline"><span aria-hidden="true">🔒</span><span class="offline-badge__text">Offline</span></div><div class="app-top-chrome"><header class="menu-bar expanded"><div class="menu-bar__inner"><button type="button" class="menu-toggle" aria-expanded="true" aria-controls="top-menu-items" aria-label="Collapse top menu"><span aria-hidden="true">▼</span><span class="menu-toggle__label">Menu</span></button><div class="menu-bar__status" aria-live="polite">Panels ready</div><nav id="top-menu-items" class="menu-items visible" aria-label="Feature panels"><button type="button" class="menu-item " aria-pressed="false" title="Settings"><span class="menu-item__icon" aria-hidden="true">⚙️</span><span class="menu-item__label">Settings</span></button><button type="button" class="menu-item " aria-pressed="false" title="Quality"><span class="menu-item__icon" aria-hidden="true">📊</span><span class="menu-item__label">Quality</span></button><button type="button" class="menu-item " aria-pressed="false" title="Size"><span class="menu-item__icon" aria-hidden="true">📐</span><span class="menu-item__label">Size</span></button><button type="button" class="menu-item " aria-pressed="false" title="Queue"><span class="menu-item__icon" aria-hidden="true">📋</span><span class="menu-item__label">Queue</span></button><button type="button" class="menu-item " aria-pressed="false" title="Privacy"><span class="menu-item__icon" aria-hidden="true">🔒</span><span class="menu-item__label">Privacy</span></button><button type="button" class="menu-item " aria-pressed="false" title="Preserve"><span class="menu-item__icon" aria-hidden="true">💾</span><span class="menu-item__label">Preserve</span></button><button type="button" class="menu-item " aria-pressed="false" title="Theme"><span class="menu-item__icon" aria-hidden="true">🌙</span><span class="menu-item__label">Theme</span></button><button type="button" class="menu-item " aria-pressed="false" title="Progress"><span class="menu-item__icon" aria-hidden="true">📈</span><span class="menu-item__label">Progress</span></button><button type="button" class="menu-item " aria-pressed="false" title="Advanced"><span class="menu-item__icon" aria-hidden="true">⚡</span><span class="menu-item__label">Advanced</span></button><button type="button" class="menu-item " aria-pressed="false" title="PWA"><span class="menu-item__icon" aria-hidden="true">📱</span><span class="menu-item__label">PWA</span></button></nav></div></header><div class="settings-panel hidden" role="presentation"><div class="settings-panel__backdrop" aria-hidden="true"></div><section class="settings-panel__dialog" role="dialog" aria-modal="false" aria-labelledby="settings-panel-title"><button type="button" class="panel-close" aria-label="Close panel">✕</button><div class="panel-content"><p class="settings-panel__eyebrow">Phase 4 controls</p><h2 id="settings-panel-title">Feature panel</h2><div class="settings-panel__content"><h3>Feature panel</h3><p class="settings-panel__description">Feature coming in a future phase.</p></div></div></section></div></div><main class="app-card app-card--split app-card--with-menu"><section class="hero hero--split"><div><p class="eyebrow">Image converter</p><h1>Image Format Converter</h1><p class="hero-copy">Drag files into the upload zone, choose a target format, then convert and download the finished results.</p></div></section><div class="split-layout split-layout--bottom-rail"><section class="split-layout__column split-layout__column--input"><section class="panel panel--zone panel--zone-input upload-panel"><div class="section-heading section-heading--zone upload-panel__heading"><div><h3>Drop your images here</h3><p class="section-copy">Add files, reorder the queue, and review progress in the same panel.</p></div><div class="upload-panel__meta"><span class="pill">0 total</span></div></div><div class="upload-zone  " role="button" tabindex="0"><div class="upload-zone__icon">⬆</div><h2>Drop your images here</h2><p>Drag and drop JPG, PNG, BMP, TIFF, WEBP, GIF, or SVG files.</p><button type="button" class="secondary-button">Browse files</button><input type="file" accept=".jpg,.jpeg,.png,.bmp,.tiff,.tif,.webp,.gif,.svg" multiple="" hidden="" style=""></div><div class="queue-inline-status" role="status" aria-live="polite"><span>0 of 0 converted</span><span>0 pending</span></div><div class="queue-block queue-block--compact"><div class="section-heading section-heading--zone"><div><h3>

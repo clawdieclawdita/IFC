@@ -3,6 +3,7 @@ import ConvertButton from './components/ConvertButton';
 import ConvertedZone from './components/ConvertedZone';
 import FormatSelector from './components/FormatSelector';
 import { MenuBar } from './components/MenuBar';
+import { OfflineBadge } from './components/OfflineBadge';
 import ProgressBar from './components/ProgressBar';
 import QueuePanel from './components/QueuePanel';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -17,12 +18,13 @@ const EXTENSION_ALIASES = {
 const QUALITY_FORMATS = new Set(['jpg', 'webp']);
 const QUALITY_DEFAULT = 85;
 const STORAGE_KEYS = {
-  menuExpanded: 'image-converter.menuExpanded',
   activePanel: 'image-converter.activePanel',
   quality: 'image-converter.quality',
   width: 'image-converter.width',
   height: 'image-converter.height',
   keepAspectRatio: 'image-converter.keepAspectRatio',
+  autoClearOnExit: 'image-converter.autoClearOnExit',
+  stripMetadata: 'image-converter.stripMetadata',
   queue: 'image-converter.queue',
 };
 
@@ -191,6 +193,26 @@ const persistQueueState = async ({ files, convertedFiles, paused, processing }) 
   });
 };
 
+const clearPrivacyStorage = async () => {
+  if (typeof window === 'undefined') return;
+
+  const keysToRemove = Object.values(STORAGE_KEYS);
+  keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+  window.sessionStorage.clear();
+
+  try {
+    await fetch('/api/temp/clear', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+      },
+      keepalive: true,
+    });
+  } catch (error) {
+    console.warn('[privacy:auto-clear] temp cleanup request failed', error);
+  }
+};
+
 const deserializeQueueFile = async (record) => {
   const file = await dataUrlToFile(record);
   return Object.assign(file, {
@@ -232,16 +254,6 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [progress, setProgress] = useState(0);
   const [isHydratingQueue, setIsHydratingQueue] = useState(true);
-  const [isMenuExpanded, setIsMenuExpanded] = useState(() => {
-    if (typeof window === 'undefined') return true;
-
-    const storedValue = window.localStorage.getItem(STORAGE_KEYS.menuExpanded);
-    if (storedValue !== null) {
-      return JSON.parse(storedValue);
-    }
-
-    return true;
-  });
   const [activePanel, setActivePanel] = useState(() => {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(STORAGE_KEYS.activePanel) || null;
@@ -250,6 +262,8 @@ export default function App() {
   const [resizeWidth, setResizeWidth] = useState(() => parseNumberStorage(STORAGE_KEYS.width));
   const [resizeHeight, setResizeHeight] = useState(() => parseNumberStorage(STORAGE_KEYS.height));
   const [keepAspectRatio, setKeepAspectRatio] = useState(() => parseBooleanStorage(STORAGE_KEYS.keepAspectRatio, true));
+  const [autoClearOnExit, setAutoClearOnExit] = useState(() => parseBooleanStorage(STORAGE_KEYS.autoClearOnExit, false));
+  const [stripMetadata, setStripMetadata] = useState(() => parseBooleanStorage(STORAGE_KEYS.stripMetadata, false));
   const [imageMetrics, setImageMetrics] = useState({ originalSize: 0, originalWidth: 0, originalHeight: 0 });
 
   const pausedRef = useRef(paused);
@@ -312,11 +326,6 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(STORAGE_KEYS.menuExpanded, JSON.stringify(isMenuExpanded));
-  }, [isMenuExpanded]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
 
     if (activePanel) {
       window.localStorage.setItem(STORAGE_KEYS.activePanel, activePanel);
@@ -353,6 +362,28 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(STORAGE_KEYS.keepAspectRatio, String(keepAspectRatio));
   }, [keepAspectRatio]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.autoClearOnExit, String(autoClearOnExit));
+  }, [autoClearOnExit]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.stripMetadata, String(stripMetadata));
+  }, [stripMetadata]);
+
+  useEffect(() => {
+    if (!autoClearOnExit || typeof window === 'undefined') return undefined;
+
+    const handleBeforeUnload = () => {
+      Object.values(abortControllersRef.current).forEach((controller) => controller.abort());
+      void clearPrivacyStorage();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [autoClearOnExit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -484,6 +515,8 @@ export default function App() {
     width: resizeWidth,
     height: resizeHeight,
     keepAspectRatio,
+    autoClearOnExit,
+    stripMetadata,
     originalSize: imageMetrics.originalSize,
     originalWidth: imageMetrics.originalWidth,
     originalHeight: imageMetrics.originalHeight,
@@ -493,7 +526,7 @@ export default function App() {
     estimatedSizeLabel: formatBytes(estimatedSizeBytes),
     qualityAppliesToTarget: QUALITY_FORMATS.has(targetFormat),
     targetFormat,
-  }), [estimatedSizeBytes, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, quality, resizeHeight, resizeWidth, targetFormat]);
+  }), [autoClearOnExit, estimatedSizeBytes, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, quality, resizeHeight, resizeWidth, stripMetadata, targetFormat]);
 
   const handleSettingsChange = (key, value) => {
     if (key === 'quality') {
@@ -511,6 +544,16 @@ export default function App() {
           setResizeWidth(clampDimension((resizeHeight / imageMetrics.originalHeight) * imageMetrics.originalWidth, imageMetrics.originalWidth));
         }
       }
+      return;
+    }
+
+    if (key === 'autoClearOnExit') {
+      setAutoClearOnExit(Boolean(value));
+      return;
+    }
+
+    if (key === 'stripMetadata') {
+      setStripMetadata(Boolean(value));
       return;
     }
 
@@ -665,18 +708,7 @@ export default function App() {
     setProgress(files.length ? progress : 0);
   };
 
-  const handleToggleMenu = () => {
-    setIsMenuExpanded((current) => {
-      const next = !current;
-      if (!next) {
-        setActivePanel(null);
-      }
-      return next;
-    });
-  };
-
   const handleSelectPanel = (panelId) => {
-    setIsMenuExpanded(true);
     setActivePanel((current) => (current === panelId ? null : panelId));
   };
 
@@ -724,6 +756,7 @@ export default function App() {
           width: resizeWidth != null ? clampDimension(resizeWidth, nextFile.originalWidth || imageMetrics.originalWidth || 4000) : null,
           height: resizeHeight != null ? clampDimension(resizeHeight, nextFile.originalHeight || imageMetrics.originalHeight || 4000) : null,
           keepAspectRatio,
+          stripMetadata,
           signal: controller.signal,
         });
 
@@ -860,12 +893,11 @@ export default function App() {
     <div className="app-shell">
       <div className="background-orb background-orb--left" />
       <div className="background-orb background-orb--right" />
+      <OfflineBadge />
 
       <div className="app-top-chrome">
         <MenuBar
-          isExpanded={isMenuExpanded}
           activePanel={activePanel}
-          onToggleExpanded={handleToggleMenu}
           onSelectPanel={handleSelectPanel}
         />
         <SettingsPanel

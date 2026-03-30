@@ -80,6 +80,37 @@ async function cleanupOldFiles(dir, maxAgeMs = MAX_FILE_AGE_MS) {
   }));
 }
 
+async function clearDirectory(dir) {
+  let entries = [];
+
+  try {
+    entries = await fsp.readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.error(`Failed to read directory for clear: ${dir}`, error);
+    }
+    return 0;
+  }
+
+  let clearedCount = 0;
+
+  await Promise.all(entries.map(async (entry) => {
+    const fullPath = path.join(dir, entry.name);
+    try {
+      if (entry.isDirectory()) {
+        await fsp.rm(fullPath, { recursive: true, force: true });
+      } else {
+        await fsp.unlink(fullPath);
+      }
+      clearedCount += 1;
+    } catch (error) {
+      console.error(`Failed clearing ${fullPath}`, error.message);
+    }
+  }));
+
+  return clearedCount;
+}
+
 function normalizeFormat(format) {
   const normalized = String(format || '').trim().toLowerCase();
   return normalized === 'jpeg' ? 'jpg' : normalized;
@@ -200,6 +231,7 @@ function parseConvertOptions(body = {}, targetFormat) {
   const width = parseOptionalNumber(body.width, 'width');
   const height = parseOptionalNumber(body.height, 'height');
   const keepAspectRatio = parseOptionalBoolean(body.keepAspectRatio, true);
+  const stripMetadata = parseOptionalBoolean(body.stripMetadata, false);
 
   if (quality != null && (quality < 0 || quality > 100)) {
     const error = new Error('quality must be between 0 and 100');
@@ -220,6 +252,7 @@ function parseConvertOptions(body = {}, targetFormat) {
     width,
     height,
     keepAspectRatio,
+    stripMetadata,
   };
 }
 
@@ -250,7 +283,13 @@ async function convertImageFile(file, targetFormat, options = {}) {
   const outputName = makeFileName(file.originalname, outputExtension);
   const outputPath = path.join(CONVERTED_DIR, outputName);
   const { sharpInput, detectedFormat, usedBmpFallback } = await loadImagePipelineSource(file);
-  const { quality = null, width = null, height = null, keepAspectRatio = true } = options;
+  const {
+    quality = null,
+    width = null,
+    height = null,
+    keepAspectRatio = true,
+    stripMetadata = false,
+  } = options;
   const metadata = await createSharpPipeline(sharpInput).metadata();
   const originalWidth = metadata.width || null;
   const originalHeight = metadata.height || null;
@@ -269,6 +308,13 @@ async function convertImageFile(file, targetFormat, options = {}) {
     throw error;
   }
 
+  const metadataSummary = {
+    hasExif: Boolean(metadata.exif),
+    hasIptc: Boolean(metadata.iptc),
+    hasXmp: Boolean(metadata.xmp),
+    hasIcc: Boolean(metadata.icc),
+  };
+
   if (format === 'svg') {
     let svgPipeline = createSharpPipeline(sharpInput);
     if (width || height) {
@@ -281,7 +327,7 @@ async function convertImageFile(file, targetFormat, options = {}) {
     const base64 = pngBuffer.toString('base64');
     const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">\n  <image href="data:image/png;base64,${base64}" width="${safeWidth}" height="${safeHeight}" />\n</svg>\n`;
     await fsp.writeFile(outputPath, svg, 'utf8');
-    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback, quality, width, height, keepAspectRatio, originalWidth, originalHeight });
+    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, originalWidth, originalHeight, metadataSummary });
     return outputName;
   }
 
@@ -293,6 +339,23 @@ async function convertImageFile(file, targetFormat, options = {}) {
       height: height || null,
       fit: keepAspectRatio ? 'inside' : 'fill',
       withoutEnlargement: true,
+    });
+  }
+
+  if (stripMetadata) {
+    log('Stripping metadata from output', {
+      originalName: file.originalname,
+      detectedFormat,
+      targetFormat: format,
+      metadataSummary,
+    });
+  } else {
+    pipeline = pipeline.withMetadata();
+    log('Preserving metadata in output', {
+      originalName: file.originalname,
+      detectedFormat,
+      targetFormat: format,
+      metadataSummary,
     });
   }
 
@@ -327,7 +390,7 @@ async function convertImageFile(file, targetFormat, options = {}) {
       throw new Error(`Unsupported conversion pipeline for format: ${format}`);
   }
 
-  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback, quality, width, height, keepAspectRatio, originalWidth, originalHeight });
+  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, originalWidth, originalHeight, metadataSummary });
   return outputName;
 }
 
@@ -346,6 +409,7 @@ app.post('/api/convert', upload.single('image'), async (req, res, next) => {
       width: options.width,
       height: options.height,
       keepAspectRatio: options.keepAspectRatio,
+      stripMetadata: options.stripMetadata,
     });
 
     const outputName = await convertImageFile(req.file, targetFormat, options);
@@ -353,7 +417,7 @@ app.post('/api/convert', upload.single('image'), async (req, res, next) => {
     const outputStats = await fsp.stat(outputPath);
     const convertedUrl = `${getBaseUrl(req)}/converted/${outputName}`;
 
-    log('Single convert success', { input: req.file.originalname, targetFormat, outputName, outputSize: outputStats.size });
+    log('Single convert success', { input: req.file.originalname, targetFormat, outputName, outputSize: outputStats.size, stripMetadata: options.stripMetadata });
     res.json({ convertedUrl, outputSize: outputStats.size });
   } catch (error) {
     next(error);
@@ -399,8 +463,24 @@ app.post('/api/convert/batch', upload.any(), async (req, res, next) => {
       width: options.width,
       height: options.height,
       keepAspectRatio: options.keepAspectRatio,
+      stripMetadata: options.stripMetadata,
     });
     res.json({ convertedUrls, files: responseFiles });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/temp/clear', async (_req, res, next) => {
+  try {
+    const [tempCleared, convertedCleared, uploadCleared] = await Promise.all([
+      clearDirectory(TEMP_DIR),
+      clearDirectory(CONVERTED_DIR),
+      clearDirectory(UPLOAD_DIR),
+    ]);
+
+    log('Temporary files cleared on privacy request', { tempCleared, convertedCleared, uploadCleared });
+    res.json({ ok: true, tempCleared, convertedCleared, uploadCleared });
   } catch (error) {
     next(error);
   }

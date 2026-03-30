@@ -35,14 +35,14 @@ const estimateMockSize = ({ file, targetFormat, quality, width, height }) => {
   return Math.max(1024, Math.round(file.size * formatMultiplier * qualityRatio * widthRatio * heightRatio));
 };
 
-export const convertSingle = async ({ file, targetFormat, quality, width, height, keepAspectRatio, signal }) => {
+export const convertSingle = async ({ file, targetFormat, quality, width, height, keepAspectRatio, stripMetadata, signal }) => {
   if (USE_MOCK_API) {
     await delay(350);
     return {
       id: `${file.name}-${file.lastModified}`,
       originalName: file.name,
       convertedName: file.name.replace(/\.[^.]+$/, '') + `.${targetFormat}`,
-      blobBase64: btoa(`mock-binary-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}`),
+      blobBase64: btoa(`mock-binary-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}-${stripMetadata}`),
       mimeType: `image/${targetFormat === 'jpg' ? 'jpeg' : targetFormat}`,
       size: estimateMockSize({ file, targetFormat, quality, width, height }),
     };
@@ -55,6 +55,7 @@ export const convertSingle = async ({ file, targetFormat, quality, width, height
   if (width != null) formData.append('width', String(width));
   if (height != null) formData.append('height', String(height));
   formData.append('keepAspectRatio', String(Boolean(keepAspectRatio)));
+  formData.append('stripMetadata', String(Boolean(stripMetadata)));
 
   const response = await fetch('/api/convert', {
     method: 'POST',

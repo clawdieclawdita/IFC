@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-
 const MENU_ITEMS = [
   { id: 'settings', name: 'Settings', icon: '⚙️' },
   { id: 'quality', name: 'Quality', icon: '📊' },
@@ -13,34 +11,13 @@ const MENU_ITEMS = [
   { id: 'pwa', name: 'PWA', icon: '📱' },
 ];
 
-export function MenuBar({ isExpanded, activePanel, onToggleExpanded, onSelectPanel }) {
-  const activeItem = useMemo(
-    () => MENU_ITEMS.find((item) => item.id === activePanel) ?? null,
-    [activePanel],
-  );
-
+export function MenuBar({ activePanel, onSelectPanel }) {
   return (
-    <header className={`menu-bar ${isExpanded ? 'expanded' : 'collapsed'}`}>
+    <header className="menu-bar">
       <div className="menu-bar__inner">
-        <button
-          type="button"
-          className="menu-toggle"
-          onClick={onToggleExpanded}
-          aria-expanded={isExpanded}
-          aria-controls="top-menu-items"
-          aria-label={isExpanded ? 'Collapse top menu' : 'Expand top menu'}
-        >
-          <span aria-hidden="true">{isExpanded ? '▼' : '▶'}</span>
-          <span className="menu-toggle__label">Menu</span>
-        </button>
-
-        <div className="menu-bar__status" aria-live="polite">
-          {activeItem ? `${activeItem.icon} ${activeItem.name}` : 'Panels ready'}
-        </div>
-
         <nav
           id="top-menu-items"
-          className={`menu-items ${isExpanded ? 'visible' : 'hidden'}`}
+          className="menu-items"
           aria-label="Feature panels"
         >
           {MENU_ITEMS.map((item) => {
