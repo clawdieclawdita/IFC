@@ -209,6 +209,57 @@ function makeFileName(originalName, extension) {
   return `${base}-${id}.${extension}`;
 }
 
+function sanitizePathSegment(value) {
+  return String(value || '')
+    .replace(/[\\/]+/g, '_')
+    .replace(/[^a-zA-Z0-9-_.]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'image';
+}
+
+function formatTimestamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
+function buildConvertedName({ originalName, extension, filenameConvention = 'original', customFilenamePattern = '', sequence = 1, now = new Date() }) {
+  const parsed = path.parse(originalName || 'image');
+  const safeName = sanitizePathSegment(parsed.name || 'image');
+  const safeExtension = sanitizePathSegment(extension);
+  const timestamp = formatTimestamp(now);
+  const date = timestamp.split('T')[0];
+  let baseName = safeName;
+
+  if (filenameConvention === 'timestamp') {
+    baseName = `${safeName}_${date}`;
+  }
+
+  if (filenameConvention === 'custom' && customFilenamePattern.trim()) {
+    baseName = customFilenamePattern
+      .replaceAll('{name}', safeName)
+      .replaceAll('{format}', safeExtension)
+      .replaceAll('{timestamp}', timestamp)
+      .replaceAll('{date}', date)
+      .replaceAll('{seq}', String(sequence));
+  }
+
+  return `${sanitizePathSegment(baseName)}.${safeExtension}`;
+}
+
+function buildZipEntryName({ convertedName, relativePath, preserveFolderStructure }) {
+  if (!preserveFolderStructure || !relativePath) return convertedName;
+  const relativeDir = path.dirname(relativePath);
+  if (!relativeDir || relativeDir === '.') return convertedName;
+
+  const safeDir = relativeDir
+    .split(/[\\/]+/)
+    .filter(Boolean)
+    .map(sanitizePathSegment)
+    .join('/');
+
+  return safeDir ? `${safeDir}/${convertedName}` : convertedName;
+}
+
 function parseOptionalNumber(value, label) {
   if (value == null || value === '') return null;
   const numeric = Number(value);
@@ -232,6 +283,13 @@ function parseConvertOptions(body = {}, targetFormat) {
   const height = parseOptionalNumber(body.height, 'height');
   const keepAspectRatio = parseOptionalBoolean(body.keepAspectRatio, true);
   const stripMetadata = parseOptionalBoolean(body.stripMetadata, false);
+  const preserveMetadata = parseOptionalBoolean(body.preserveMetadata, false);
+  const preserveFolderStructure = parseOptionalBoolean(body.preserveFolderStructure, false);
+  const filenameConvention = ['original', 'timestamp', 'custom'].includes(body.filenameConvention)
+    ? body.filenameConvention
+    : 'original';
+  const customFilenamePattern = String(body.customFilenamePattern || '');
+  const relativePath = String(body.relativePath || '');
 
   if (quality != null && (quality < 0 || quality > 100)) {
     const error = new Error('quality must be between 0 and 100');
@@ -253,6 +311,11 @@ function parseConvertOptions(body = {}, targetFormat) {
     height,
     keepAspectRatio,
     stripMetadata,
+    preserveMetadata,
+    filenameConvention,
+    customFilenamePattern,
+    preserveFolderStructure,
+    relativePath,
   };
 }
 
@@ -280,7 +343,21 @@ async function convertImageFile(file, targetFormat, options = {}) {
   validateTargetFormat(format);
 
   const outputExtension = OUTPUT_EXTENSION_MAP[format];
-  const outputName = makeFileName(file.originalname, outputExtension);
+  const convertedName = buildConvertedName({
+    originalName: file.originalname,
+    extension: outputExtension,
+    filenameConvention: options.filenameConvention,
+    customFilenamePattern: options.customFilenamePattern,
+    sequence: options.sequence,
+  });
+  log('Filename generated', {
+    originalName: file.originalname,
+    convertedName,
+    filenameConvention: options.filenameConvention,
+    customFilenamePattern: options.customFilenamePattern,
+    sequence: options.sequence || 1,
+  });
+  const outputName = makeFileName(convertedName, outputExtension);
   const outputPath = path.join(CONVERTED_DIR, outputName);
   const { sharpInput, detectedFormat, usedBmpFallback } = await loadImagePipelineSource(file);
   const {
@@ -289,6 +366,8 @@ async function convertImageFile(file, targetFormat, options = {}) {
     height = null,
     keepAspectRatio = true,
     stripMetadata = false,
+    preserveMetadata = false,
+    relativePath = '',
   } = options;
   const metadata = await createSharpPipeline(sharpInput).metadata();
   const originalWidth = metadata.width || null;
@@ -327,8 +406,8 @@ async function convertImageFile(file, targetFormat, options = {}) {
     const base64 = pngBuffer.toString('base64');
     const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">\n  <image href="data:image/png;base64,${base64}" width="${safeWidth}" height="${safeHeight}" />\n</svg>\n`;
     await fsp.writeFile(outputPath, svg, 'utf8');
-    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, originalWidth, originalHeight, metadataSummary });
-    return outputName;
+    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, convertedName, relativePath, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, preserveMetadata, originalWidth, originalHeight, metadataSummary });
+    return { outputName, convertedName, relativePath };
   }
 
   let pipeline = createSharpPipeline(sharpInput);
@@ -349,7 +428,7 @@ async function convertImageFile(file, targetFormat, options = {}) {
       targetFormat: format,
       metadataSummary,
     });
-  } else {
+  } else if (preserveMetadata) {
     pipeline = pipeline.withMetadata();
     log('Preserving metadata in output', {
       originalName: file.originalname,
@@ -390,8 +469,8 @@ async function convertImageFile(file, targetFormat, options = {}) {
       throw new Error(`Unsupported conversion pipeline for format: ${format}`);
   }
 
-  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, originalWidth, originalHeight, metadataSummary });
-  return outputName;
+  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, convertedName, relativePath, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, preserveMetadata, originalWidth, originalHeight, metadataSummary });
+  return { outputName, convertedName, relativePath };
 }
 
 app.post('/api/convert', upload.single('image'), async (req, res, next) => {
@@ -410,15 +489,20 @@ app.post('/api/convert', upload.single('image'), async (req, res, next) => {
       height: options.height,
       keepAspectRatio: options.keepAspectRatio,
       stripMetadata: options.stripMetadata,
+      preserveMetadata: options.preserveMetadata,
+      filenameConvention: options.filenameConvention,
+      customFilenamePattern: options.customFilenamePattern,
+      preserveFolderStructure: options.preserveFolderStructure,
+      relativePath: options.relativePath,
     });
 
-    const outputName = await convertImageFile(req.file, targetFormat, options);
+    const { outputName, convertedName, relativePath } = await convertImageFile(req.file, targetFormat, options);
     const outputPath = path.join(CONVERTED_DIR, outputName);
     const outputStats = await fsp.stat(outputPath);
     const convertedUrl = `${getBaseUrl(req)}/converted/${outputName}`;
 
-    log('Single convert success', { input: req.file.originalname, targetFormat, outputName, outputSize: outputStats.size, stripMetadata: options.stripMetadata });
-    res.json({ convertedUrl, outputSize: outputStats.size });
+    log('Single convert success', { input: req.file.originalname, targetFormat, outputName, convertedName, relativePath, outputSize: outputStats.size, stripMetadata: options.stripMetadata, preserveMetadata: options.preserveMetadata });
+    res.json({ convertedUrl, convertedName, relativePath, outputSize: outputStats.size });
   } catch (error) {
     next(error);
   }
@@ -440,16 +524,17 @@ app.post('/api/convert/batch', upload.any(), async (req, res, next) => {
 
     const targetFormat = normalizeFormat(req.body.targetFormat);
     const options = parseConvertOptions(req.body, targetFormat);
-    const outputNames = await Promise.all(
-      files.map((file) => convertImageFile(file, targetFormat, options))
+    const outputFiles = await Promise.all(
+      files.map((file, index) => convertImageFile(file, targetFormat, { ...options, sequence: index + 1, relativePath: file.originalname }))
     );
 
-    const convertedUrls = outputNames.map((name) => `${getBaseUrl(req)}/converted/${name}`);
-    const responseFiles = await Promise.all(outputNames.map(async (outputName, index) => {
+    const convertedUrls = outputFiles.map(({ outputName }) => `${getBaseUrl(req)}/converted/${outputName}`);
+    const responseFiles = await Promise.all(outputFiles.map(async ({ outputName, convertedName, relativePath }, index) => {
       const outputStats = await fsp.stat(path.join(CONVERTED_DIR, outputName));
       return {
         originalName: files[index].originalname,
-        convertedName: outputName,
+        convertedName,
+        relativePath,
         downloadUrl: convertedUrls[index],
         outputSize: outputStats.size,
       };
@@ -464,6 +549,9 @@ app.post('/api/convert/batch', upload.any(), async (req, res, next) => {
       height: options.height,
       keepAspectRatio: options.keepAspectRatio,
       stripMetadata: options.stripMetadata,
+      preserveMetadata: options.preserveMetadata,
+      filenameConvention: options.filenameConvention,
+      preserveFolderStructure: options.preserveFolderStructure,
     });
     res.json({ convertedUrls, files: responseFiles });
   } catch (error) {
@@ -488,9 +576,13 @@ app.post('/api/temp/clear', async (_req, res, next) => {
 
 app.post('/api/zip', async (req, res, next) => {
   try {
-    const { convertedUrls } = req.body || {};
-    if (!Array.isArray(convertedUrls) || convertedUrls.length === 0) {
-      return res.status(400).json({ error: 'convertedUrls must be a non-empty array' });
+    const { convertedFiles, convertedUrls, preserveFolderStructure = false } = req.body || {};
+    const filesForZip = Array.isArray(convertedFiles) && convertedFiles.length
+      ? convertedFiles
+      : (Array.isArray(convertedUrls) ? convertedUrls.map((downloadUrl) => ({ downloadUrl })) : []);
+
+    if (!filesForZip.length) {
+      return res.status(400).json({ error: 'convertedFiles must be a non-empty array' });
     }
 
     const zipName = `converted-${crypto.randomUUID()}.zip`;
@@ -505,7 +597,8 @@ app.post('/api/zip', async (req, res, next) => {
       archive.on('error', reject);
       archive.pipe(output);
 
-      for (const fileUrl of convertedUrls) {
+      for (const item of filesForZip) {
+        const fileUrl = item.downloadUrl;
         const parsed = new URL(fileUrl, getBaseUrl(req));
         const pathname = decodeURIComponent(parsed.pathname);
 
@@ -524,14 +617,21 @@ app.post('/api/zip', async (req, res, next) => {
           throw err;
         }
 
-        archive.file(filePath, { name: fileName });
+        const zipEntryName = buildZipEntryName({
+          convertedName: item.convertedName || fileName,
+          relativePath: item.relativePath || '',
+          preserveFolderStructure: Boolean(preserveFolderStructure),
+        });
+
+        log('ZIP entry added', { fileName, zipEntryName, preserveFolderStructure: Boolean(preserveFolderStructure), relativePath: item.relativePath || '' });
+        archive.file(filePath, { name: zipEntryName });
       }
 
       archive.finalize().catch(reject);
     });
 
     const zipUrl = `${getBaseUrl(req)}/temp/${zipName}`;
-    log('ZIP created', { zipName, fileCount: convertedUrls.length });
+    log('ZIP created', { zipName, fileCount: filesForZip.length, preserveFolderStructure: Boolean(preserveFolderStructure) });
     res.json({ zipUrl });
   } catch (error) {
     next(error);

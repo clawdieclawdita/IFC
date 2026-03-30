@@ -35,14 +35,28 @@ const estimateMockSize = ({ file, targetFormat, quality, width, height }) => {
   return Math.max(1024, Math.round(file.size * formatMultiplier * qualityRatio * widthRatio * heightRatio));
 };
 
-export const convertSingle = async ({ file, targetFormat, quality, width, height, keepAspectRatio, stripMetadata, signal }) => {
+export const convertSingle = async ({
+  file,
+  targetFormat,
+  quality,
+  width,
+  height,
+  keepAspectRatio,
+  stripMetadata,
+  preserveMetadata,
+  filenameConvention,
+  customFilenamePattern,
+  preserveFolderStructure,
+  signal,
+}) => {
   if (USE_MOCK_API) {
     await delay(350);
     return {
       id: `${file.name}-${file.lastModified}`,
       originalName: file.name,
       convertedName: file.name.replace(/\.[^.]+$/, '') + `.${targetFormat}`,
-      blobBase64: btoa(`mock-binary-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}-${stripMetadata}`),
+      relativePath: file.relativePath || file.webkitRelativePath || '',
+      blobBase64: btoa(`mock-binary-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}-${stripMetadata}-${preserveMetadata}-${filenameConvention}-${customFilenamePattern}-${preserveFolderStructure}`),
       mimeType: `image/${targetFormat === 'jpg' ? 'jpeg' : targetFormat}`,
       size: estimateMockSize({ file, targetFormat, quality, width, height }),
     };
@@ -56,6 +70,11 @@ export const convertSingle = async ({ file, targetFormat, quality, width, height
   if (height != null) formData.append('height', String(height));
   formData.append('keepAspectRatio', String(Boolean(keepAspectRatio)));
   formData.append('stripMetadata', String(Boolean(stripMetadata)));
+  formData.append('preserveMetadata', String(Boolean(preserveMetadata)));
+  formData.append('filenameConvention', filenameConvention || 'original');
+  formData.append('customFilenamePattern', customFilenamePattern || '');
+  formData.append('preserveFolderStructure', String(Boolean(preserveFolderStructure)));
+  formData.append('relativePath', file.relativePath || file.webkitRelativePath || '');
 
   const response = await fetch('/api/convert', {
     method: 'POST',
@@ -76,17 +95,75 @@ export const convertSingle = async ({ file, targetFormat, quality, width, height
   return {
     id: `${file.name}-${file.lastModified}`,
     originalName: file.name,
-    convertedName: file.name.replace(/\.[^.]+$/, '') + `.${targetFormat}`,
+    convertedName: data.convertedName || file.name.replace(/\.[^.]+$/, '') + `.${targetFormat}`,
+    relativePath: data.relativePath || file.relativePath || file.webkitRelativePath || '',
     downloadUrl: data.convertedUrl,
     mimeType: `image/${targetFormat === 'jpg' ? 'jpeg' : targetFormat}`,
     size: data.outputSize ?? file.size,
   };
 };
 
-export const createZip = async ({ targetFormat, convertedFiles }) => {
+export const convertBatch = async ({
+  files,
+  targetFormat,
+  quality,
+  width,
+  height,
+  keepAspectRatio,
+  stripMetadata,
+  preserveMetadata,
+  filenameConvention,
+  customFilenamePattern,
+  preserveFolderStructure,
+  signal,
+}) => {
+  if (USE_MOCK_API) {
+    await delay(350);
+    return files.map((file, index) => ({
+      id: `${file.name}-${file.lastModified}`,
+      originalName: file.name,
+      convertedName: file.name.replace(/\.[^.]+$/, '') + `.${targetFormat}`,
+      relativePath: file.relativePath || file.webkitRelativePath || '',
+      blobBase64: btoa(`mock-batch-${index}-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}-${stripMetadata}-${preserveMetadata}-${filenameConvention}-${customFilenamePattern}-${preserveFolderStructure}`),
+      mimeType: `image/${targetFormat === 'jpg' ? 'jpeg' : targetFormat}`,
+      size: estimateMockSize({ file, targetFormat, quality, width, height }),
+    }));
+  }
+
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append('images', file);
+  }
+  formData.append('targetFormat', targetFormat);
+  if (quality != null) formData.append('quality', String(quality));
+  if (width != null) formData.append('width', String(width));
+  if (height != null) formData.append('height', String(height));
+  formData.append('keepAspectRatio', String(Boolean(keepAspectRatio)));
+  formData.append('stripMetadata', String(Boolean(stripMetadata)));
+  formData.append('preserveMetadata', String(Boolean(preserveMetadata)));
+  formData.append('filenameConvention', filenameConvention || 'original');
+  formData.append('customFilenamePattern', customFilenamePattern || '');
+  formData.append('preserveFolderStructure', String(Boolean(preserveFolderStructure)));
+
+  const response = await fetch('/api/convert/batch', {
+    method: 'POST',
+    headers: API_HEADERS,
+    body: formData,
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, 'Batch conversion failed.'));
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.files) ? data.files : [];
+};
+
+export const createZip = async ({ targetFormat, convertedFiles, preserveFolderStructure }) => {
   if (USE_MOCK_API) {
     await delay(400);
-    return new Blob([JSON.stringify({ targetFormat, files: convertedFiles }, null, 2)], {
+    return new Blob([JSON.stringify({ targetFormat, preserveFolderStructure, files: convertedFiles }, null, 2)], {
       type: 'application/zip',
     });
   }
@@ -98,7 +175,12 @@ export const createZip = async ({ targetFormat, convertedFiles }) => {
       ...API_HEADERS,
     },
     body: JSON.stringify({
-      convertedUrls: convertedFiles.map((file) => file.downloadUrl).filter(Boolean),
+      convertedFiles: convertedFiles.map((file) => ({
+        downloadUrl: file.downloadUrl,
+        convertedName: file.convertedName,
+        relativePath: file.relativePath || '',
+      })).filter((file) => file.downloadUrl),
+      preserveFolderStructure: Boolean(preserveFolderStructure),
     }),
   });
 

@@ -4,7 +4,7 @@ const MENU_ITEMS = [
   { id: 'size', name: 'Size', icon: '📐' },
   { id: 'queue', name: 'Queue', icon: '📋' },
   { id: 'privacy', name: 'Privacy', icon: '🔒' },
-  { id: 'preserve', name: 'Preserve', icon: '💾' },
+  { id: 'filename', name: 'Filename', icon: '📝' },
   { id: 'theme', name: 'Theme', icon: '🌙' },
   { id: 'progress', name: 'Progress', icon: '📈' },
   { id: 'advanced', name: 'Advanced', icon: '⚡' },

@@ -25,6 +25,10 @@ const STORAGE_KEYS = {
   keepAspectRatio: 'image-converter.keepAspectRatio',
   autoClearOnExit: 'image-converter.autoClearOnExit',
   stripMetadata: 'image-converter.stripMetadata',
+  preserveMetadata: 'image-converter.preserveMetadata',
+  filenameConvention: 'image-converter.filenameConvention',
+  customFilenamePattern: 'image-converter.customFilenamePattern',
+  preserveFolderStructure: 'image-converter.preserveFolderStructure',
   queue: 'image-converter.queue',
 };
 
@@ -169,6 +173,7 @@ const serializeQueueFile = async (file) => ({
   lastModified: file.lastModified,
   originalWidth: file.originalWidth || 0,
   originalHeight: file.originalHeight || 0,
+  relativePath: file.relativePath || file.webkitRelativePath || '',
   dataUrl: await blobToDataUrl(file),
 });
 
@@ -218,6 +223,7 @@ const deserializeQueueFile = async (record) => {
   return Object.assign(file, {
     originalWidth: record.originalWidth || 0,
     originalHeight: record.originalHeight || 0,
+    relativePath: record.relativePath || '',
   });
 };
 
@@ -264,6 +270,16 @@ export default function App() {
   const [keepAspectRatio, setKeepAspectRatio] = useState(() => parseBooleanStorage(STORAGE_KEYS.keepAspectRatio, true));
   const [autoClearOnExit, setAutoClearOnExit] = useState(() => parseBooleanStorage(STORAGE_KEYS.autoClearOnExit, false));
   const [stripMetadata, setStripMetadata] = useState(() => parseBooleanStorage(STORAGE_KEYS.stripMetadata, false));
+  const [preserveMetadata, setPreserveMetadata] = useState(() => parseBooleanStorage(STORAGE_KEYS.preserveMetadata, false));
+  const [filenameConvention, setFilenameConvention] = useState(() => {
+    if (typeof window === 'undefined') return 'original';
+    return window.localStorage.getItem(STORAGE_KEYS.filenameConvention) || 'original';
+  });
+  const [customFilenamePattern, setCustomFilenamePattern] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem(STORAGE_KEYS.customFilenamePattern) || '';
+  });
+  const [preserveFolderStructure, setPreserveFolderStructure] = useState(() => parseBooleanStorage(STORAGE_KEYS.preserveFolderStructure, false));
   const [imageMetrics, setImageMetrics] = useState({ originalSize: 0, originalWidth: 0, originalHeight: 0 });
 
   const pausedRef = useRef(paused);
@@ -372,6 +388,26 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(STORAGE_KEYS.stripMetadata, String(stripMetadata));
   }, [stripMetadata]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.preserveMetadata, String(preserveMetadata));
+  }, [preserveMetadata]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.filenameConvention, filenameConvention);
+  }, [filenameConvention]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.customFilenamePattern, customFilenamePattern);
+  }, [customFilenamePattern]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.preserveFolderStructure, String(preserveFolderStructure));
+  }, [preserveFolderStructure]);
 
   useEffect(() => {
     if (!autoClearOnExit || typeof window === 'undefined') return undefined;
@@ -526,7 +562,11 @@ export default function App() {
     estimatedSizeLabel: formatBytes(estimatedSizeBytes),
     qualityAppliesToTarget: QUALITY_FORMATS.has(targetFormat),
     targetFormat,
-  }), [autoClearOnExit, estimatedSizeBytes, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, quality, resizeHeight, resizeWidth, stripMetadata, targetFormat]);
+    preserveMetadata,
+    filenameConvention,
+    customFilenamePattern,
+    preserveFolderStructure,
+  }), [autoClearOnExit, customFilenamePattern, estimatedSizeBytes, filenameConvention, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, preserveFolderStructure, preserveMetadata, quality, resizeHeight, resizeWidth, stripMetadata, targetFormat]);
 
   const handleSettingsChange = (key, value) => {
     if (key === 'quality') {
@@ -553,7 +593,31 @@ export default function App() {
     }
 
     if (key === 'stripMetadata') {
-      setStripMetadata(Boolean(value));
+      const nextStripMetadata = Boolean(value);
+      setStripMetadata(nextStripMetadata);
+      if (nextStripMetadata) setPreserveMetadata(false);
+      return;
+    }
+
+    if (key === 'preserveMetadata') {
+      const nextPreserveMetadata = Boolean(value);
+      setPreserveMetadata(nextPreserveMetadata);
+      if (nextPreserveMetadata) setStripMetadata(false);
+      return;
+    }
+
+    if (key === 'filenameConvention') {
+      setFilenameConvention(String(value || 'original'));
+      return;
+    }
+
+    if (key === 'customFilenamePattern') {
+      setCustomFilenamePattern(String(value || ''));
+      return;
+    }
+
+    if (key === 'preserveFolderStructure') {
+      setPreserveFolderStructure(Boolean(value));
       return;
     }
 
@@ -757,6 +821,10 @@ export default function App() {
           height: resizeHeight != null ? clampDimension(resizeHeight, nextFile.originalHeight || imageMetrics.originalHeight || 4000) : null,
           keepAspectRatio,
           stripMetadata,
+          preserveMetadata,
+          filenameConvention,
+          customFilenamePattern,
+          preserveFolderStructure,
           signal: controller.signal,
         });
 
@@ -880,7 +948,7 @@ export default function App() {
     setErrorMessage('');
 
     try {
-      const blob = await createZip({ targetFormat, convertedFiles });
+      const blob = await createZip({ targetFormat, convertedFiles, preserveFolderStructure });
       triggerDownload({ blob, filename: `converted-images-${targetFormat}.zip` });
     } catch (error) {
       setErrorMessage(error.message || 'ZIP download failed.');

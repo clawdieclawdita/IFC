@@ -1,3 +1,4 @@
+import { FilenamePanel } from './FilenamePanel';
 import { MENU_ITEMS } from './MenuBar';
 import { PrivacyPanel } from './PrivacyPanel';
 import { QualityPanel } from './QualityPanel';
@@ -6,7 +7,7 @@ import { SizePanel } from './SizePanel';
 const PANEL_COPY = {
   settings: 'Global app settings will land here in a future phase.',
   queue: 'Queue controls are reserved for upcoming batching features.',
-  preserve: 'Metadata preservation controls are reserved for a future phase.',
+  filename: 'Filename controls are reserved for a future phase.',
   theme: 'Theme customization is planned for a future phase.',
   progress: 'Detailed progress controls are planned for a future phase.',
   advanced: 'Advanced conversion controls are planned for a future phase.',
@@ -27,6 +28,10 @@ export function SettingsPanel({ activePanel, onClose, settings, onChange }) {
 
     if (activePanel === 'privacy') {
       return <PrivacyPanel settings={settings} onChange={onChange} />;
+    }
+
+    if (activePanel === 'filename') {
+      return <FilenamePanel settings={settings} onChange={onChange} />;
     }
 
     return (
@@ -54,7 +59,7 @@ export function SettingsPanel({ activePanel, onClose, settings, onChange }) {
         </button>
 
         <div className="panel-content">
-          <p className="settings-panel__eyebrow">Phase 4 controls</p>
+          <p className="settings-panel__eyebrow">Phase 5 controls</p>
           <h2 id="settings-panel-title">
             {activeItem ? `${activeItem.icon} ${activeItem.name}` : 'Feature panel'}
           </h2>

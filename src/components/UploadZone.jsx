@@ -84,7 +84,11 @@ export default function UploadZone({
   };
 
   const processFiles = (incomingFiles) => {
-    const filesToProcess = Array.from(incomingFiles || []);
+    const filesToProcess = Array.from(incomingFiles || []).map((file) => {
+      const relativePath = file.webkitRelativePath || file.relativePath || '';
+      if (!relativePath) return file;
+      return Object.assign(file, { relativePath });
+    });
     if (!filesToProcess.length) return;
 
     if (errorTimeoutRef.current) {
