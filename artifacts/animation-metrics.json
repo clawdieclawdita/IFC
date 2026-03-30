@@ -1,0 +1,15 @@
+{
+  "animationName": "swipe-right",
+  "animationDuration": "1.2s",
+  "animationTiming": "cubic-bezier(0.4, 0, 0.2, 1)",
+  "metrics": {
+    "sampleCount": 25,
+    "visibleSamples": 19,
+    "startMs": 191.2999999821186,
+    "endMs": 1335.5999999940395,
+    "durationMs": 1144.300000011921,
+    "maxStepPx": 106.41423034667969,
+    "minStepPx": 0,
+    "negativeSteps": 0
+  }
+}

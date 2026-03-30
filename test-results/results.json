@@ -1,0 +1,862 @@
+{
+  "config": {
+    "configFile": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/playwright.config.ts",
+    "rootDir": "/home/pschivo/.openclaw/workspace-devo/image-converter-app",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/utils/global-setup.mjs",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 6
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 6
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/pschivo/.openclaw/workspace-devo/image-converter-app",
+        "testIgnore": [],
+        "testMatch": [
+          "e2e/**/*.spec.ts",
+          "tests/**/*.spec.ts"
+        ],
+        "timeout": 90000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ],
+      [
+        "list",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 8,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "e2e/animations.spec.ts",
+      "file": "e2e/animations.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Animation quality",
+          "file": "e2e/animations.spec.ts",
+          "line": 15,
+          "column": 6,
+          "specs": [
+            {
+              "title": "swipe animation appears, moves left-to-right, and completes near the intended timing",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3153,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:23.329Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "animation-complete",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-animations-Animation-q-7e17a-es-near-the-intended-timing-chromium/attachments/animation-complete-fcd2c36319501319e1bbf7fe2761682ad4783160.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "57b31a60fd88360e94b1-5af9d65088324a08c3be",
+              "file": "e2e/animations.spec.ts",
+              "line": 21,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "e2e/basic.spec.ts",
+      "file": "e2e/basic.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Image Format Converter - core functionality",
+          "file": "e2e/basic.spec.ts",
+          "line": 18,
+          "column": 6,
+          "specs": [
+            {
+              "title": "app loads correctly and renders all primary areas",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1272,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:23.358Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "app-loaded",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-basic-Image-Format-Con-9a33b-d-renders-all-primary-areas-chromium/attachments/app-loaded-c6534b04c64864442d34124c5e530ee98d3285a2.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ccf6a7df11f3627d21b-30b207ea09e0c2f255b2",
+              "file": "e2e/basic.spec.ts",
+              "line": 24,
+              "column": 3
+            },
+            {
+              "title": "upload, validation, conversion, downloads, and error handling work on the live app",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 4901,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:24.761Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "single-upload-drop",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-basic-Image-Format-Con-a1dc7-ndling-work-on-the-live-app-chromium/attachments/single-upload-drop-12a0b03603f51d8deae7ff8d2283f3411a8f0401.png"
+                        },
+                        {
+                          "name": "converted-output",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-basic-Image-Format-Con-a1dc7-ndling-work-on-the-live-app-chromium/attachments/converted-output-ffbb780b5d7dc11643d73745d9a0f6c6a9bc6d79.png"
+                        },
+                        {
+                          "name": "downloads-ready",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-basic-Image-Format-Con-a1dc7-ndling-work-on-the-live-app-chromium/attachments/downloads-ready-b2e1ce78df29c4695afbe6914b93d61b7f2d4750.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ccf6a7df11f3627d21b-b7a9624b7edb4116e4fa",
+              "file": "e2e/basic.spec.ts",
+              "line": 33,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "e2e/format-conversion.spec.ts",
+      "file": "e2e/format-conversion.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Format conversion coverage",
+          "file": "e2e/format-conversion.spec.ts",
+          "line": 24,
+          "column": 6,
+          "specs": [
+            {
+              "title": "JPG -> PNG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 3440,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:23.328Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "jpg-to-png",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-format-conversion-Form-bde0d---PNG-converts-successfully-chromium/attachments/jpg-to-png-d02b9c74240e0bbd3ee9ff1834f9b80379bfa7b9.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "af0619b712f4dafaae8b-b54a38dfb0f4a92fdf2b",
+              "file": "e2e/format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "PNG -> WEBP converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2706,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:26.865Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "png-to-webp",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-format-conversion-Form-9e780--WEBP-converts-successfully-chromium/attachments/png-to-webp-87b29568a7dc5e5935b6e3a883a35e9aaa95c107.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "af0619b712f4dafaae8b-cabe0bd27fc8e4a922de",
+              "file": "e2e/format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "BMP -> JPG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2531,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:29.579Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "bmp-to-jpg",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-format-conversion-Form-dcae3---JPG-converts-successfully-chromium/attachments/bmp-to-jpg-d4e24e6f12f2683c70d143120e1f85c52b2bf919.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "af0619b712f4dafaae8b-d18a346a35b60243ada1",
+              "file": "e2e/format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "TIFF -> PNG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2481,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:32.119Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "tiff-to-png",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-format-conversion-Form-3ce57---PNG-converts-successfully-chromium/attachments/tiff-to-png-5a2fea4eb31b1693f79a027cc3b256cc529f0823.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "af0619b712f4dafaae8b-4cee68f35a9e1682ca77",
+              "file": "e2e/format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "WEBP -> GIF converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2521,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:34.606Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "webp-to-gif",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-format-conversion-Form-76a9d---GIF-converts-successfully-chromium/attachments/webp-to-gif-af637346b74406287764b260eeaf91b1aa9a36ab.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "af0619b712f4dafaae8b-c4405f3d8bc9fecd1467",
+              "file": "e2e/format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "GIF -> JPG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2493,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:37.135Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "gif-to-jpg",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-format-conversion-Form-75144---JPG-converts-successfully-chromium/attachments/gif-to-jpg-059539d68735ff4d52f5d81298845e2f5522d201.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "af0619b712f4dafaae8b-e07aaff0d1d43af9e375",
+              "file": "e2e/format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "SVG -> PNG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2480,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:39.638Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "svg-to-png",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-format-conversion-Form-7cc1d---PNG-converts-successfully-chromium/attachments/svg-to-png-56aab26be5b2ee469b788d1eda5a873b5ecef6d1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "af0619b712f4dafaae8b-6ec1a71f2c25c3ef8411",
+              "file": "e2e/format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "e2e/menu-system.spec.ts",
+      "file": "e2e/menu-system.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Menu system",
+          "file": "e2e/menu-system.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "menu bar starts expanded, can collapse, and state persists on refresh",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 2866,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:23.336Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "panel-open",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-menu-system-Menu-syste-51b6b-d-state-persists-on-refresh-chromium/attachments/panel-open-bbe9b2f0200e01b99253cff3cff6c4502de7c77f.png"
+                        },
+                        {
+                          "name": "menu-persisted",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-menu-system-Menu-syste-51b6b-d-state-persists-on-refresh-chromium/attachments/menu-persisted-6286d206420a56a97b98594862ea17ada6eb9e59.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b5d71151d0667d2a6fc2-01fce3f88ba684598d5c",
+              "file": "e2e/menu-system.spec.ts",
+              "line": 10,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "e2e/responsive.spec.ts",
+      "file": "e2e/responsive.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Responsive layout",
+          "file": "e2e/responsive.spec.ts",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "desktop layout remains usable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 1588,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:23.331Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "desktop",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-responsive-Responsive--894be-sktop-layout-remains-usable-chromium/attachments/desktop-3778080ef0866052c04b93350ad50d18c9ac47fb.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "820ea5b6d0e1f5b849bb-12cd0c0887d6f01d4ab1",
+              "file": "e2e/responsive.spec.ts",
+              "line": 13,
+              "column": 5
+            },
+            {
+              "title": "tablet layout remains usable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 1526,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:25.022Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "tablet",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-responsive-Responsive--c3b5d-ablet-layout-remains-usable-chromium/attachments/tablet-8b445b20073a4f677aeaae92bb0f761bec295966.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "820ea5b6d0e1f5b849bb-209c8768bfebf1dcca43",
+              "file": "e2e/responsive.spec.ts",
+              "line": 13,
+              "column": 5
+            },
+            {
+              "title": "mobile-820 layout remains usable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 877,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:26.566Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "mobile-820",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-responsive-Responsive--68ef0-e-820-layout-remains-usable-chromium/attachments/mobile-820-122d3585c38e968eca61279149745604472003a3.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "820ea5b6d0e1f5b849bb-968f0787a571f78450f6",
+              "file": "e2e/responsive.spec.ts",
+              "line": 13,
+              "column": 5
+            },
+            {
+              "title": "mobile-640 layout remains usable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 814,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:27.452Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "mobile-640",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-responsive-Responsive--9e917-e-640-layout-remains-usable-chromium/attachments/mobile-640-284c68ff00f97924c267ff7c35ee3343e0eb70fc.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "820ea5b6d0e1f5b849bb-65b748b7e8bdcb234e74",
+              "file": "e2e/responsive.spec.ts",
+              "line": 13,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "tests/bmp-fix.spec.ts",
+      "file": "tests/bmp-fix.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "BMP Fix Verification",
+          "file": "tests/bmp-fix.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "BMP → JPG conversion works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "passed",
+                      "duration": 2818,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:23.333Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "73a7ddc4f5595198d462-b34150ea370e6e6a9391",
+              "file": "tests/bmp-fix.spec.ts",
+              "line": 10,
+              "column": 3
+            },
+            {
+              "title": "JPG → BMP conversion works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 5,
+                      "status": "passed",
+                      "duration": 2459,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T02:21:26.261Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "73a7ddc4f5595198d462-4945d71d574d778b2776",
+              "file": "tests/bmp-fix.spec.ts",
+              "line": 20,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-03-30T02:21:22.160Z",
+    "duration": 20011.893,
+    "expected": 17,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

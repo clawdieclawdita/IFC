@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import ConvertButton from './components/ConvertButton';
 import ConvertedZone from './components/ConvertedZone';
 import FormatSelector from './components/FormatSelector';
+import { MenuBar } from './components/MenuBar';
 import ProgressBar from './components/ProgressBar';
+import { SettingsPanel } from './components/SettingsPanel';
 import UploadZone from './components/UploadZone';
 import { convertSingle, createZip, triggerDownload } from './lib/api';
 
@@ -30,6 +32,10 @@ const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 const SWIPE_DURATION_MS = 1200;
 const ARRIVAL_DURATION_MS = 280;
 const MAX_VISIBLE_SWIPE_STACK = 4;
+const STORAGE_KEYS = {
+  menuExpanded: 'image-converter.menuExpanded',
+  activePanel: 'image-converter.activePanel',
+};
 
 function SwipePreview({ file }) {
   const [src, setSrc] = useState('');
@@ -61,6 +67,20 @@ export default function App() {
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [progress, setProgress] = useState(0);
+  const [isMenuExpanded, setIsMenuExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true;
+
+    const storedValue = window.localStorage.getItem(STORAGE_KEYS.menuExpanded);
+    if (storedValue !== null) {
+      return JSON.parse(storedValue);
+    }
+
+    return true;
+  });
+  const [activePanel, setActivePanel] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(STORAGE_KEYS.activePanel) || null;
+  });
 
   const formatValidation = useMemo(() => {
     const sameFormatFiles = files.filter((file) => getFileExtension(file) === targetFormat);
@@ -89,6 +109,22 @@ export default function App() {
   );
   const canDownloadZip = useMemo(() => convertedFiles.length > 0 && !isDownloadingZip, [convertedFiles.length, isDownloadingZip]);
   const canClearAll = useMemo(() => files.length > 0 && !isConverting, [files.length, isConverting]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.menuExpanded, JSON.stringify(isMenuExpanded));
+  }, [isMenuExpanded]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (activePanel) {
+      window.localStorage.setItem(STORAGE_KEYS.activePanel, activePanel);
+      return;
+    }
+
+    window.localStorage.removeItem(STORAGE_KEYS.activePanel);
+  }, [activePanel]);
 
   const addFiles = (incomingFiles) => {
     setErrorMessage('');
@@ -147,6 +183,25 @@ export default function App() {
     setConvertedFiles([]);
     setErrorMessage('');
     setProgress(0);
+  };
+
+  const handleToggleMenu = () => {
+    setIsMenuExpanded((current) => {
+      const next = !current;
+      if (!next) {
+        setActivePanel(null);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectPanel = (panelId) => {
+    setIsMenuExpanded(true);
+    setActivePanel((current) => (current === panelId ? null : panelId));
+  };
+
+  const handleClosePanel = () => {
+    setActivePanel(null);
   };
 
   const handleConvert = async () => {
@@ -323,7 +378,17 @@ export default function App() {
       <div className="background-orb background-orb--left" />
       <div className="background-orb background-orb--right" />
 
-      <main className="app-card app-card--split">
+      <div className="app-top-chrome">
+        <MenuBar
+          isExpanded={isMenuExpanded}
+          activePanel={activePanel}
+          onToggleExpanded={handleToggleMenu}
+          onSelectPanel={handleSelectPanel}
+        />
+        <SettingsPanel activePanel={activePanel} onClose={handleClosePanel} />
+      </div>
+
+      <main className="app-card app-card--split app-card--with-menu">
         <section className="hero hero--split">
           <div>
             <p className="eyebrow">Image converter</p>

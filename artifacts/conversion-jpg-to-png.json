@@ -1,0 +1,6 @@
+{
+  "from": "jpg",
+  "to": "png",
+  "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/fixtures/sample-jpg.jpg",
+  "output": "sample-jpg.png"
+}

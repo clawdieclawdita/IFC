@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import sharp from 'sharp';
+import bmp from 'bmp-js';
 import archiver from 'archiver';
 import fs from 'fs';
 import fsp from 'fs/promises';
@@ -22,6 +23,8 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const MAX_FILE_AGE_MS = 1000 * 60 * 60;
 
 const SUPPORTED_FORMATS = new Set(['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'webp', 'gif', 'svg']);
+const BMP_MIME_TYPES = new Set(['image/bmp', 'image/x-bmp', 'image/x-ms-bmp']);
+const BMP_SIGNATURE = Buffer.from('424d', 'hex');
 const OUTPUT_EXTENSION_MAP = {
   jpg: 'jpg',
   jpeg: 'jpg',
@@ -94,6 +97,80 @@ function getBaseUrl(req) {
   return `${req.protocol}://${req.get('host')}`;
 }
 
+function detectInputFormat({ originalName, mimeType, filePath, headerBuffer }) {
+  const extension = normalizeFormat(path.extname(originalName || filePath || '').slice(1));
+  const mime = String(mimeType || '').trim().toLowerCase();
+  const signature = headerBuffer?.subarray(0, 2);
+
+  if (signature && signature.equals(BMP_SIGNATURE)) {
+    return 'bmp';
+  }
+
+  if (BMP_MIME_TYPES.has(mime)) {
+    return 'bmp';
+  }
+
+  return extension || 'unknown';
+}
+
+function isUnsupportedImageFormatError(error) {
+  return /unsupported image format/i.test(error?.message || '');
+}
+
+async function loadImagePipelineSource(file) {
+  const headerBuffer = await fsp.readFile(file.path);
+  const detectedFormat = detectInputFormat({
+    originalName: file.originalname,
+    mimeType: file.mimetype,
+    filePath: file.path,
+    headerBuffer
+  });
+
+  log('Detected upload format', {
+    originalName: file.originalname,
+    mimeType: file.mimetype,
+    detectedFormat,
+    sharpBmpInputSupported: Boolean(sharp.format?.bmp?.input?.file)
+  });
+
+  try {
+    await sharp(file.path, { animated: true }).metadata();
+    return { sharpInput: file.path, detectedFormat, usedBmpFallback: false };
+  } catch (error) {
+    if (!(detectedFormat === 'bmp' && isUnsupportedImageFormatError(error))) {
+      throw error;
+    }
+
+    const decoded = bmp.decode(headerBuffer);
+    log('Using BMP decode fallback for Sharp input', {
+      originalName: file.originalname,
+      width: decoded.width,
+      height: decoded.height,
+      mimeType: file.mimetype
+    });
+
+    return {
+      sharpInput: {
+        raw: {
+          width: decoded.width,
+          height: decoded.height,
+          channels: 4
+        },
+        data: decoded.data
+      },
+      detectedFormat,
+      usedBmpFallback: true
+    };
+  }
+}
+
+function createSharpPipeline(sharpInput) {
+  return sharp(
+    sharpInput.raw ? sharpInput.data : sharpInput,
+    sharpInput.raw ? { raw: sharpInput.raw } : { animated: true }
+  );
+}
+
 function makeFileName(originalName, extension) {
   const base = path.parse(originalName || 'image').name.replace(/[^a-zA-Z0-9-_]/g, '_') || 'image';
   const id = crypto.randomUUID();
@@ -119,51 +196,61 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, supportedFormats: [...SUPPORTED_FORMATS] });
 });
 
-async function convertImageFile(inputPath, originalName, targetFormat) {
+async function convertImageFile(file, targetFormat) {
   const format = normalizeFormat(targetFormat);
   validateTargetFormat(format);
 
   const outputExtension = OUTPUT_EXTENSION_MAP[format];
-  const outputName = makeFileName(originalName, outputExtension);
+  const outputName = makeFileName(file.originalname, outputExtension);
   const outputPath = path.join(CONVERTED_DIR, outputName);
+  const { sharpInput, detectedFormat, usedBmpFallback } = await loadImagePipelineSource(file);
 
   if (format === 'svg') {
-    const pngBuffer = await sharp(inputPath).png().toBuffer();
+    const pngBuffer = await createSharpPipeline(sharpInput).png().toBuffer();
     const metadata = await sharp(pngBuffer).metadata();
     const safeWidth = metadata.width || 512;
     const safeHeight = metadata.height || 512;
     const base64 = pngBuffer.toString('base64');
     const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">\n  <image href="data:image/png;base64,${base64}" width="${safeWidth}" height="${safeHeight}" />\n</svg>\n`;
     await fsp.writeFile(outputPath, svg, 'utf8');
+    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback });
     return outputName;
   }
 
-  let pipeline = sharp(inputPath, { animated: true });
+  let pipeline = createSharpPipeline(sharpInput);
 
   switch (format) {
     case 'jpg':
       pipeline = pipeline.jpeg({ quality: 90 });
+      await pipeline.toFile(outputPath);
       break;
     case 'png':
       pipeline = pipeline.png();
+      await pipeline.toFile(outputPath);
       break;
-    case 'bmp':
-      pipeline = pipeline.bmp();
+    case 'bmp': {
+      const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const encoded = bmp.encode({ data, width: info.width, height: info.height });
+      await fsp.writeFile(outputPath, encoded.data);
       break;
+    }
     case 'tiff':
       pipeline = pipeline.tiff({ quality: 90 });
+      await pipeline.toFile(outputPath);
       break;
     case 'webp':
       pipeline = pipeline.webp({ quality: 90 });
+      await pipeline.toFile(outputPath);
       break;
     case 'gif':
       pipeline = pipeline.gif();
+      await pipeline.toFile(outputPath);
       break;
     default:
       throw new Error(`Unsupported conversion pipeline for format: ${format}`);
   }
 
-  await pipeline.toFile(outputPath);
+  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, usedBmpFallback });
   return outputName;
 }
 
@@ -174,7 +261,7 @@ app.post('/api/convert', upload.single('image'), async (req, res, next) => {
     }
 
     const targetFormat = normalizeFormat(req.body.targetFormat);
-    const outputName = await convertImageFile(req.file.path, req.file.originalname, targetFormat);
+    const outputName = await convertImageFile(req.file, targetFormat);
     const convertedUrl = `${getBaseUrl(req)}/converted/${outputName}`;
 
     log('Single convert success', { input: req.file.originalname, targetFormat, outputName });
@@ -200,7 +287,7 @@ app.post('/api/convert/batch', upload.any(), async (req, res, next) => {
 
     const targetFormat = normalizeFormat(req.body.targetFormat);
     const outputNames = await Promise.all(
-      files.map((file) => convertImageFile(file.path, file.originalname, targetFormat))
+      files.map((file) => convertImageFile(file, targetFormat))
     );
 
     const convertedUrls = outputNames.map((name) => `${getBaseUrl(req)}/converted/${name}`);
@@ -279,14 +366,25 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(DIST_DIR, 'index.html'));
 });
 
-app.use((error, _req, res, _next) => {
+app.use((error, req, res, _next) => {
   if (error instanceof multer.MulterError) {
     return res.status(400).json({ error: error.message });
   }
 
-  const status = error.status || 500;
-  console.error('Request failed:', error);
-  res.status(status).json({ error: error.message || 'Internal server error' });
+  const isUnsupportedInput = isUnsupportedImageFormatError(error);
+  const status = error.status || (isUnsupportedInput ? 400 : 500);
+  const responseMessage = isUnsupportedInput
+    ? `Unsupported input image format for file "${req.file?.originalname || 'unknown'}". Supported uploads include JPG, PNG, BMP, TIFF, WEBP, GIF, and SVG when the runtime can decode them.`
+    : (error.message || 'Internal server error');
+
+  console.error('Request failed:', {
+    message: error.message,
+    status,
+    file: req.file?.originalname,
+    mimeType: req.file?.mimetype,
+    stack: error.stack
+  });
+  res.status(status).json({ error: responseMessage });
 });
 
 async function startup() {

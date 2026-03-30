@@ -1,0 +1,818 @@
+{
+  "config": {
+    "configFile": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/playwright.config.ts",
+    "rootDir": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/utils/global-setup.mjs",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 90000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "artifacts/test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "animations.spec.ts",
+      "file": "animations.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Animation quality",
+          "file": "animations.spec.ts",
+          "line": 15,
+          "column": 6,
+          "specs": [
+            {
+              "title": "swipe animation appears, moves left-to-right, and completes near the intended timing",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2501,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:42:32.663Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "animation-complete",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/animations-Animation-quali-3ceaf-es-near-the-intended-timing/attachments/animation-complete-fcd2c36319501319e1bbf7fe2761682ad4783160.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "1b40241f82150e7b533e-f27a47a82b90c4297a7c",
+              "file": "animations.spec.ts",
+              "line": 21,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "basic.spec.ts",
+      "file": "basic.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Image Format Converter - core functionality",
+          "file": "basic.spec.ts",
+          "line": 18,
+          "column": 6,
+          "specs": [
+            {
+              "title": "app loads correctly and renders all primary areas",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 582,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:42:35.252Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "app-loaded",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/basic-Image-Format-Convert-2b234-d-renders-all-primary-areas/attachments/app-loaded-c6534b04c64864442d34124c5e530ee98d3285a2.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8946741c555a0c4515d8-32d7a398a98609779112",
+              "file": "basic.spec.ts",
+              "line": 24,
+              "column": 3
+            },
+            {
+              "title": "upload, validation, conversion, downloads, and error handling work on the live app",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4495,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:42:35.848Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "single-upload-drop",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/basic-Image-Format-Convert-5c4d0-ndling-work-on-the-live-app/attachments/single-upload-drop-12a0b03603f51d8deae7ff8d2283f3411a8f0401.png"
+                        },
+                        {
+                          "name": "converted-output",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/basic-Image-Format-Convert-5c4d0-ndling-work-on-the-live-app/attachments/converted-output-ffbb780b5d7dc11643d73745d9a0f6c6a9bc6d79.png"
+                        },
+                        {
+                          "name": "downloads-ready",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/basic-Image-Format-Convert-5c4d0-ndling-work-on-the-live-app/attachments/downloads-ready-b2e1ce78df29c4695afbe6914b93d61b7f2d4750.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8946741c555a0c4515d8-0bc983d2f6a9a1d20086",
+              "file": "basic.spec.ts",
+              "line": 33,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "format-conversion.spec.ts",
+      "file": "format-conversion.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Format conversion coverage",
+          "file": "format-conversion.spec.ts",
+          "line": 24,
+          "column": 6,
+          "specs": [
+            {
+              "title": "JPG -> PNG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2622,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:42:40.361Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "jpg-to-png",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-01151---PNG-converts-successfully/attachments/jpg-to-png-d02b9c74240e0bbd3ee9ff1834f9b80379bfa7b9.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "627ca7edabbb3c08b2be-2079de36c41c07e45e8f",
+              "file": "format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "PNG -> WEBP converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2619,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:42:42.993Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "png-to-webp",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-a9b8d--WEBP-converts-successfully/attachments/png-to-webp-87b29568a7dc5e5935b6e3a883a35e9aaa95c107.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "627ca7edabbb3c08b2be-d21f130a01aae9c90dbe",
+              "file": "format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "BMP -> JPG converts successfully",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 31468,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.converted-zone .image-card--converted')\nExpected: \u001b[32m1\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  30000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for locator('.converted-zone .image-card--converted')\u001b[22m\n\u001b[2m    34 × locator resolved to 0 elements\u001b[22m\n\u001b[2m       - unexpected value \"0\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.converted-zone .image-card--converted')\nExpected: \u001b[32m1\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  30000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for locator('.converted-zone .image-card--converted')\u001b[22m\n\u001b[2m    34 × locator resolved to 0 elements\u001b[22m\n\u001b[2m       - unexpected value \"0\"\u001b[22m\n\n    at waitForConversionDone (/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/helpers.ts:85:72)\n    at /home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/format-conversion.spec.ts:32:13",
+                        "location": {
+                          "file": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/helpers.ts",
+                          "column": 72,
+                          "line": 85
+                        },
+                        "snippet": "   at helpers.ts:85\n\n  83 |\n  84 | export async function waitForConversionDone(page: Page, expectedCount: number) {\n> 85 |   await expect(page.locator('.converted-zone .image-card--converted')).toHaveCount(expectedCount, { timeout: 30_000 });\n     |                                                                        ^\n  86 |   await expect(page.locator('.progress-block__meta strong')).toContainText('100%');\n  87 | }\n  88 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/helpers.ts",
+                            "column": 72,
+                            "line": 85
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.converted-zone .image-card--converted')\nExpected: \u001b[32m1\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  30000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 30000ms\u001b[22m\n\u001b[2m  - waiting for locator('.converted-zone .image-card--converted')\u001b[22m\n\u001b[2m    34 × locator resolved to 0 elements\u001b[22m\n\u001b[2m       - unexpected value \"0\"\u001b[22m\n\n\n   at helpers.ts:85\n\n  83 |\n  84 | export async function waitForConversionDone(page: Page, expectedCount: number) {\n> 85 |   await expect(page.locator('.converted-zone .image-card--converted')).toHaveCount(expectedCount, { timeout: 30_000 });\n     |                                                                        ^\n  86 |   await expect(page.locator('.progress-block__meta strong')).toContainText('100%');\n  87 | }\n  88 |\n    at waitForConversionDone (/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/helpers.ts:85:72)\n    at /home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/format-conversion.spec.ts:32:13"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:42:45.623Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-55634---JPG-converts-successfully/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-55634---JPG-converts-successfully/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-55634---JPG-converts-successfully/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-55634---JPG-converts-successfully/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/helpers.ts",
+                        "column": 72,
+                        "line": 85
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "627ca7edabbb3c08b2be-531b2be50d28bc8491e1",
+              "file": "format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "TIFF -> PNG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2694,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:18.039Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "tiff-to-png",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-f1110---PNG-converts-successfully/attachments/tiff-to-png-5a2fea4eb31b1693f79a027cc3b256cc529f0823.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "627ca7edabbb3c08b2be-00d6ffcff95539d25834",
+              "file": "format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "WEBP -> GIF converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2628,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:20.795Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "webp-to-gif",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-709e2---GIF-converts-successfully/attachments/webp-to-gif-af637346b74406287764b260eeaf91b1aa9a36ab.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "627ca7edabbb3c08b2be-d8f41a40333758c0d8eb",
+              "file": "format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "GIF -> JPG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2592,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:23.443Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "gif-to-jpg",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-62b01---JPG-converts-successfully/attachments/gif-to-jpg-059539d68735ff4d52f5d81298845e2f5522d201.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "627ca7edabbb3c08b2be-f7145c0f45ec599e4f26",
+              "file": "format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            },
+            {
+              "title": "SVG -> PNG converts successfully",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2596,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:26.045Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "svg-to-png",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/format-conversion-Format-c-866e3---PNG-converts-successfully/attachments/svg-to-png-56aab26be5b2ee469b788d1eda5a873b5ecef6d1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "627ca7edabbb3c08b2be-857a040c138e0462a2f4",
+              "file": "format-conversion.spec.ts",
+              "line": 26,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "menu-system.spec.ts",
+      "file": "menu-system.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Menu system",
+          "file": "menu-system.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "menu bar toggles, panel opens/closes, and state persists on refresh",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1688,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:28.658Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "panel-open",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/menu-system-Menu-system-me-e73ee-d-state-persists-on-refresh/attachments/panel-open-81486003cdad39e27110d737359c8f32ecfd786f.png"
+                        },
+                        {
+                          "name": "menu-persisted",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/menu-system-Menu-system-me-e73ee-d-state-persists-on-refresh/attachments/menu-persisted-cd67000faecd4039ebef32121f961d5ffe6182a6.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a467e23556d69fe83b9c-157b06935a7c11278b2a",
+              "file": "menu-system.spec.ts",
+              "line": 10,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "responsive.spec.ts",
+      "file": "responsive.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Responsive layout",
+          "file": "responsive.spec.ts",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "desktop layout remains usable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1194,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:30.363Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "desktop",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/responsive-Responsive-layout-desktop-layout-remains-usable/attachments/desktop-3778080ef0866052c04b93350ad50d18c9ac47fb.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e0223b006feb3d306446-2a76359e7c9e57cb82ed",
+              "file": "responsive.spec.ts",
+              "line": 13,
+              "column": 5
+            },
+            {
+              "title": "tablet layout remains usable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1079,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:31.566Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "tablet",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/responsive-Responsive-layout-tablet-layout-remains-usable/attachments/tablet-8b445b20073a4f677aeaae92bb0f761bec295966.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e0223b006feb3d306446-7d6ccaead40c223b0392",
+              "file": "responsive.spec.ts",
+              "line": 13,
+              "column": 5
+            },
+            {
+              "title": "mobile-820 layout remains usable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 924,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:32.654Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "mobile-820",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/responsive-Responsive-layo-96756-e-820-layout-remains-usable/attachments/mobile-820-122d3585c38e968eca61279149745604472003a3.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e0223b006feb3d306446-47ccb07949c7a17ba7a6",
+              "file": "responsive.spec.ts",
+              "line": 13,
+              "column": 5
+            },
+            {
+              "title": "mobile-640 layout remains usable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 881,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T01:43:33.589Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "mobile-640",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/responsive-Responsive-layo-4ccfd-e-640-layout-remains-usable/attachments/mobile-640-284c68ff00f97924c267ff7c35ee3343e0eb70fc.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e0223b006feb3d306446-5d2c47e0c3cf42caa11c",
+              "file": "responsive.spec.ts",
+              "line": 13,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-03-30T01:42:31.658Z",
+    "duration": 62880.533,
+    "expected": 14,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

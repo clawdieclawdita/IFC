@@ -1,0 +1,6 @@
+{
+  "from": "webp",
+  "to": "gif",
+  "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/fixtures/sample-webp.webp",
+  "output": "sample-webp.gif"
+}
