@@ -35,7 +35,7 @@ const estimateMockSize = ({ file, targetFormat, quality, width, height }) => {
   return Math.max(1024, Math.round(file.size * formatMultiplier * qualityRatio * widthRatio * heightRatio));
 };
 
-export const convertSingle = async ({ file, targetFormat, quality, width, height, keepAspectRatio }) => {
+export const convertSingle = async ({ file, targetFormat, quality, width, height, keepAspectRatio, signal }) => {
   if (USE_MOCK_API) {
     await delay(350);
     return {
@@ -60,6 +60,7 @@ export const convertSingle = async ({ file, targetFormat, quality, width, height
     method: 'POST',
     headers: API_HEADERS,
     body: formData,
+    signal,
   });
 
   if (!response.ok) {

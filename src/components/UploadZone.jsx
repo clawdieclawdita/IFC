@@ -50,6 +50,10 @@ export default function UploadZone({
   convertingMap,
   convertingProgress,
   onRemove,
+  onCancel,
+  onReorder,
+  paused,
+  queueSummary,
 }) {
   const inputRef = useRef(null);
   const errorTimeoutRef = useRef(null);
@@ -126,9 +130,12 @@ export default function UploadZone({
       <div className="section-heading section-heading--zone upload-panel__heading">
         <div>
           <h3>Drop your images here</h3>
-          <p className="section-copy">Add files and review the upload queue in the same panel.</p>
+          <p className="section-copy">Add files, reorder the queue, and review progress in the same panel.</p>
         </div>
-        <span className="pill">{files.length} total</span>
+        <div className="upload-panel__meta">
+          {paused ? <span className="pill pill--warning">Paused</span> : null}
+          <span className="pill">{queueSummary?.total ?? files.length} total</span>
+        </div>
       </div>
 
       <div
@@ -189,6 +196,14 @@ export default function UploadZone({
         />
       </div>
 
+      {queueSummary ? (
+        <div className="queue-inline-status" role="status" aria-live="polite">
+          <span>{queueSummary.converted} of {queueSummary.total} converted</span>
+          <span>{queueSummary.pending} pending</span>
+          {queueSummary.processing ? <span>{queueSummary.processing} processing</span> : null}
+        </div>
+      ) : null}
+
       {localError ? <p className="helper-text helper-text--warning" role="alert">{localError}</p> : null}
 
       <ImageList
@@ -199,6 +214,9 @@ export default function UploadZone({
         convertingProgress={convertingProgress}
         targetFormat={targetFormat}
         onRemove={onRemove}
+        onCancel={onCancel}
+        onReorder={onReorder}
+        paused={paused}
         compact
       />
     </section>

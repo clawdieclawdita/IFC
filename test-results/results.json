@@ -65,20 +65,20 @@
   },
   "suites": [
     {
-      "title": "tests/quality-size-settings.spec.ts",
-      "file": "tests/quality-size-settings.spec.ts",
+      "title": "e2e/queue-management.spec.ts",
+      "file": "e2e/queue-management.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Quality and size settings",
-          "file": "tests/quality-size-settings.spec.ts",
-          "line": 9,
+          "title": "Image Format Converter - Phase 3 queue management",
+          "file": "e2e/queue-management.spec.ts",
+          "line": 13,
           "column": 6,
           "specs": [
             {
-              "title": "quality and size panels render and persist settings",
+              "title": "queue persists across refreshes",
               "ok": true,
               "tags": [],
               "tests": [
@@ -93,23 +93,18 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1996,
+                      "duration": 713,
                       "errors": [],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-03-30T02:48:44.721Z",
+                      "startTime": "2026-03-30T05:06:01.170Z",
                       "annotations": [],
                       "attachments": [
                         {
-                          "name": "quality-panel",
+                          "name": "queue-persistence-refresh",
                           "contentType": "image/png",
-                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/tests-quality-size-setting-a9fe9-render-and-persist-settings-chromium/attachments/quality-panel-9e4d7e7deb89e7c552ac234e74f2d74db4dc115a.png"
-                        },
-                        {
-                          "name": "size-panel",
-                          "contentType": "image/png",
-                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/tests-quality-size-setting-a9fe9-render-and-persist-settings-chromium/attachments/size-panel-1050d4960d5d07b6a6ce8080cb98ad196fb20b31.png"
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-queue-management-Image-b92e9-e-persists-across-refreshes-chromium/attachments/queue-persistence-refresh-dbf50a946c67b79c46f90fe0fbb2393cc36a56fa.png"
                         }
                       ]
                     }
@@ -117,9 +112,94 @@
                   "status": "expected"
                 }
               ],
-              "id": "f856e602911e4fe4b8d9-6871670960c3d8a3e383",
-              "file": "tests/quality-size-settings.spec.ts",
-              "line": 16,
+              "id": "9feda41d32fb4cf0d5ca-210efa108d041ed5b280",
+              "file": "e2e/queue-management.spec.ts",
+              "line": 20,
+              "column": 3
+            },
+            {
+              "title": "drag and drop reorders the upload grid",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 791,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T05:06:01.946Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "drag-drop-reorder",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-queue-management-Image-2ff2f-op-reorders-the-upload-grid-chromium/attachments/drag-drop-reorder-169f1fc90183daf5727699879f96b9ce26372691.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9feda41d32fb4cf0d5ca-9e08093a2d2838cf5817",
+              "file": "e2e/queue-management.spec.ts",
+              "line": 41,
+              "column": 3
+            },
+            {
+              "title": "pause resume and cancel keep batch state intact",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4782,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-30T05:06:02.746Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "pause-resume-controls",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-queue-management-Image-5c9d2-cel-keep-batch-state-intact-chromium/attachments/pause-resume-controls-480f9e280320ab23f507a4ce251349df82527a57.png"
+                        },
+                        {
+                          "name": "cancel-item",
+                          "contentType": "image/png",
+                          "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/test-results/e2e-queue-management-Image-5c9d2-cel-keep-batch-state-intact-chromium/attachments/cancel-item-c3c1a4e3e8356873ff788f9dbcc2881cd162db3a.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9feda41d32fb4cf0d5ca-c8dd04295e2c8bf4efaa",
+              "file": "e2e/queue-management.spec.ts",
+              "line": 87,
               "column": 3
             }
           ]
@@ -129,9 +209,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-03-30T02:48:43.670Z",
-    "duration": 3171.7999999999997,
-    "expected": 1,
+    "startTime": "2026-03-30T05:06:00.268Z",
+    "duration": 7308.745,
+    "expected": 3,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

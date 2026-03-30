@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ConvertButton from './components/ConvertButton';
 import ConvertedZone from './components/ConvertedZone';
 import FormatSelector from './components/FormatSelector';
 import { MenuBar } from './components/MenuBar';
 import ProgressBar from './components/ProgressBar';
+import QueuePanel from './components/QueuePanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import UploadZone from './components/UploadZone';
 import { convertSingle, createZip, triggerDownload } from './lib/api';
@@ -22,6 +23,7 @@ const STORAGE_KEYS = {
   width: 'image-converter.width',
   height: 'image-converter.height',
   keepAspectRatio: 'image-converter.keepAspectRatio',
+  queue: 'image-converter.queue',
 };
 
 const FORMAT_SIZE_MULTIPLIERS = {
@@ -41,6 +43,19 @@ const base64ToBlob = (base64, mimeType) => {
     bytes[index] = byteString.charCodeAt(index);
   }
   return new Blob([bytes], { type: mimeType });
+};
+
+const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result));
+  reader.onerror = () => reject(new Error('Failed to read file for persistence.'));
+  reader.readAsDataURL(blob);
+});
+
+const dataUrlToFile = async ({ dataUrl, name, type, lastModified }) => {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  return new File([blob], name, { type, lastModified });
 };
 
 const getFileExtension = (file) => {
@@ -145,6 +160,45 @@ const estimateOutputSize = ({
   return Math.max(1024, Math.round(originalSize * areaRatio * formatMultiplier * qualityRatio));
 };
 
+const serializeQueueFile = async (file) => ({
+  name: file.name,
+  size: file.size,
+  type: file.type,
+  lastModified: file.lastModified,
+  originalWidth: file.originalWidth || 0,
+  originalHeight: file.originalHeight || 0,
+  dataUrl: await blobToDataUrl(file),
+});
+
+const persistQueueState = async ({ files, convertedFiles, paused, processing }) => {
+  if (typeof window === 'undefined') return;
+
+  const serializedQueue = await Promise.all(files.map(serializeQueueFile));
+  const payload = {
+    queue: serializedQueue,
+    converted: convertedFiles,
+    paused,
+    processing,
+  };
+
+  window.localStorage.setItem(STORAGE_KEYS.queue, JSON.stringify(payload));
+  console.log('[queue:persist] saved', {
+    queueLength: serializedQueue.length,
+    convertedLength: convertedFiles.length,
+    paused,
+    processingLength: processing.length,
+    names: serializedQueue.map((file) => file.name),
+  });
+};
+
+const deserializeQueueFile = async (record) => {
+  const file = await dataUrlToFile(record);
+  return Object.assign(file, {
+    originalWidth: record.originalWidth || 0,
+    originalHeight: record.originalHeight || 0,
+  });
+};
+
 function SwipePreview({ file }) {
   const [src, setSrc] = useState('');
 
@@ -169,12 +223,15 @@ export default function App() {
   const [targetFormat, setTargetFormat] = useState('png');
   const [convertedFiles, setConvertedFiles] = useState([]);
   const [isConverting, setIsConverting] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [convertingMap, setConvertingMap] = useState({});
   const [convertingProgress, setConvertingProgress] = useState({});
+  const [processing, setProcessing] = useState([]);
   const [activeTransfers, setActiveTransfers] = useState([]);
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [progress, setProgress] = useState(0);
+  const [isHydratingQueue, setIsHydratingQueue] = useState(true);
   const [isMenuExpanded, setIsMenuExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
 
@@ -194,6 +251,29 @@ export default function App() {
   const [resizeHeight, setResizeHeight] = useState(() => parseNumberStorage(STORAGE_KEYS.height));
   const [keepAspectRatio, setKeepAspectRatio] = useState(() => parseBooleanStorage(STORAGE_KEYS.keepAspectRatio, true));
   const [imageMetrics, setImageMetrics] = useState({ originalSize: 0, originalWidth: 0, originalHeight: 0 });
+
+  const pausedRef = useRef(paused);
+  const abortControllersRef = useRef({});
+  const currentRunIdRef = useRef(0);
+  const filesRef = useRef(files);
+  const convertedFilesRef = useRef(convertedFiles);
+  const processingRef = useRef(processing);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
+  useEffect(() => {
+    convertedFilesRef.current = convertedFiles;
+  }, [convertedFiles]);
+
+  useEffect(() => {
+    processingRef.current = processing;
+  }, [processing]);
 
   const formatValidation = useMemo(() => {
     const sameFormatFiles = files.filter((file) => getFileExtension(file) === targetFormat);
@@ -216,12 +296,19 @@ export default function App() {
     };
   }, [files, targetFormat]);
 
+  const queueSummary = useMemo(() => ({
+    pending: files.length,
+    converted: convertedFiles.length,
+    total: files.length + convertedFiles.length,
+    processing: processing.length,
+  }), [convertedFiles.length, files.length, processing.length]);
+
   const canConvert = useMemo(
-    () => formatValidation.convertibleFiles.length > 0 && !isConverting,
-    [formatValidation.convertibleFiles.length, isConverting],
+    () => formatValidation.convertibleFiles.length > 0 && !isConverting && !paused,
+    [formatValidation.convertibleFiles.length, isConverting, paused],
   );
   const canDownloadZip = useMemo(() => convertedFiles.length > 0 && !isDownloadingZip, [convertedFiles.length, isDownloadingZip]);
-  const canClearAll = useMemo(() => files.length > 0 && !isConverting, [files.length, isConverting]);
+  const canClearAll = useMemo(() => (files.length > 0 || convertedFiles.length > 0) && !isConverting, [convertedFiles.length, files.length, isConverting]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -266,6 +353,79 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(STORAGE_KEYS.keepAspectRatio, String(keepAspectRatio));
   }, [keepAspectRatio]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateQueue = async () => {
+      if (typeof window === 'undefined') return;
+
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEYS.queue);
+        if (!raw) {
+          console.log('[queue:hydrate] nothing in localStorage');
+          return;
+        }
+
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') {
+          console.warn('[queue:hydrate] invalid payload shape');
+          return;
+        }
+
+        const hydratedQueue = await Promise.all((parsed.queue || []).map(deserializeQueueFile));
+        if (cancelled) return;
+
+        setFiles(hydratedQueue);
+        setConvertedFiles(Array.isArray(parsed.converted) ? parsed.converted : []);
+        setPaused(Boolean(parsed.paused));
+        setProcessing(Array.isArray(parsed.processing) ? parsed.processing : []);
+
+        const total = hydratedQueue.length + (Array.isArray(parsed.converted) ? parsed.converted.length : 0);
+        const completed = Array.isArray(parsed.converted) ? parsed.converted.length : 0;
+        setProgress(total ? Math.round((completed / total) * 100) : 0);
+
+        console.log('[queue:hydrate] loaded', {
+          queueLength: hydratedQueue.length,
+          convertedLength: Array.isArray(parsed.converted) ? parsed.converted.length : 0,
+          paused: Boolean(parsed.paused),
+          processingLength: Array.isArray(parsed.processing) ? parsed.processing.length : 0,
+          names: hydratedQueue.map((file) => file.name),
+        });
+      } catch (error) {
+        console.error('[queue:hydrate] failed, clearing persisted queue', error);
+        window.localStorage.removeItem(STORAGE_KEYS.queue);
+      } finally {
+        if (!cancelled) setIsHydratingQueue(false);
+      }
+    };
+
+    hydrateQueue();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isHydratingQueue || typeof window === 'undefined') return;
+
+    let cancelled = false;
+    const persistQueue = async () => {
+      try {
+        await persistQueueState({ files, convertedFiles, paused, processing });
+        if (cancelled) return;
+      } catch (error) {
+        console.error('[queue:persist] failed', error);
+      }
+    };
+
+    persistQueue();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [convertedFiles, files, isHydratingQueue, paused, processing]);
 
   useEffect(() => {
     setImageMetrics(getMinOriginalDimensions(files));
@@ -386,32 +546,37 @@ export default function App() {
 
   const addFiles = async (incomingFiles) => {
     setErrorMessage('');
-    setConvertedFiles([]);
-    setConvertingMap({});
-    setConvertingProgress({});
-    setActiveTransfers([]);
     setProgress(0);
 
     const enrichedIncomingFiles = await Promise.all(incomingFiles.map(async (file) => Object.assign(file, await readImageDimensions(file))));
 
-    setFiles((current) => {
-      const deduped = new Map(current.map((file) => [getFileKey(file), file]));
+    const nextFiles = (() => {
+      const deduped = new Map(filesRef.current.map((file) => [getFileKey(file), file]));
       enrichedIncomingFiles.forEach((file) => {
         deduped.set(getFileKey(file), file);
       });
       return Array.from(deduped.values());
-    });
+    })();
+
+    console.log('[queue:add] files added', nextFiles.map((file) => file.name));
+    setFiles(nextFiles);
+    filesRef.current = nextFiles;
+
+    try {
+      await persistQueueState({
+        files: nextFiles,
+        convertedFiles: convertedFilesRef.current,
+        paused: pausedRef.current,
+        processing: processingRef.current,
+      });
+    } catch (error) {
+      console.error('[queue:add] immediate persist failed', error);
+    }
   };
 
-  const handleRemoveFile = (fileToRemove) => {
-    const fileKey = getFileKey(fileToRemove);
-    if (convertingMap[fileKey]?.phase === 'swiping' || convertingMap[fileKey]?.phase === 'transitioning') {
-      return;
-    }
-
-    setErrorMessage('');
-    setFiles((current) => current.filter((file) => getFileKey(file) !== fileKey));
-    setConvertedFiles((current) => current.filter((item) => item.originalName !== fileToRemove.name));
+  const clearProcessingStateForKey = (fileKey) => {
+    setProcessing((current) => current.filter((item) => item !== fileKey));
+    setActiveTransfers((current) => current.filter((item) => item.id !== fileKey));
     setConvertingMap((current) => {
       const next = { ...current };
       delete next[fileKey];
@@ -422,7 +587,53 @@ export default function App() {
       delete next[fileKey];
       return next;
     });
-    setProgress(0);
+
+    if (abortControllersRef.current[fileKey]) {
+      delete abortControllersRef.current[fileKey];
+    }
+  };
+
+  const handleRemoveFile = (fileToRemove) => {
+    const fileKey = getFileKey(fileToRemove);
+    if (processing.includes(fileKey)) {
+      return;
+    }
+
+    setErrorMessage('');
+    setFiles((current) => current.filter((file) => getFileKey(file) !== fileKey));
+    clearProcessingStateForKey(fileKey);
+
+    setProgress((current) => ((filesRef.current.length - 1 <= 0 && convertedFilesRef.current.length === 0) ? 0 : current));
+  };
+
+  const handleCancelItem = (fileToCancel) => {
+    const fileKey = getFileKey(fileToCancel);
+    setErrorMessage('');
+
+    const controller = abortControllersRef.current[fileKey];
+    if (controller) {
+      controller.abort();
+    }
+
+    clearProcessingStateForKey(fileKey);
+    setFiles((current) => current.filter((file) => getFileKey(file) !== fileKey));
+  };
+
+  const handleReorder = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+
+    setFiles((current) => {
+      if (fromIndex >= current.length || toIndex >= current.length) return current;
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      console.log('[queue:reorder]', {
+        fromIndex,
+        toIndex,
+        order: next.map((file) => file.name),
+      });
+      return next;
+    });
   };
 
   const handleClearAll = () => {
@@ -431,11 +642,19 @@ export default function App() {
     const confirmed = window.confirm('Clear all uploaded and converted images? This cannot be undone.');
     if (!confirmed) return;
 
+    Object.values(abortControllersRef.current).forEach((controller) => controller.abort());
+    abortControllersRef.current = {};
+    currentRunIdRef.current += 1;
+    pausedRef.current = false;
+
     setErrorMessage('');
+    setPaused(false);
+    setIsConverting(false);
     setFiles([]);
     setConvertedFiles([]);
     setConvertingMap({});
     setConvertingProgress({});
+    setProcessing([]);
     setActiveTransfers([]);
     setProgress(0);
   };
@@ -443,7 +662,7 @@ export default function App() {
   const handleClearConverted = () => {
     setConvertedFiles([]);
     setErrorMessage('');
-    setProgress(0);
+    setProgress(files.length ? progress : 0);
   };
 
   const handleToggleMenu = () => {
@@ -465,8 +684,79 @@ export default function App() {
     setActivePanel(null);
   };
 
+  const processQueue = async (runId) => {
+    const totalAtStart = filesRef.current.length + convertedFilesRef.current.length;
+    let completedCount = convertedFilesRef.current.length;
+
+    while (!pausedRef.current) {
+      const nextFile = filesRef.current.find((file) => getFileExtension(file) !== targetFormat);
+      if (!nextFile) break;
+
+      const fileKey = getFileKey(nextFile);
+      const stackIndex = processingRef.current.length % MAX_VISIBLE_SWIPE_STACK;
+      const controller = new AbortController();
+      abortControllersRef.current[fileKey] = controller;
+
+      setProcessing((current) => [...current, fileKey]);
+      setConvertingMap((current) => ({ ...current, [fileKey]: { phase: 'swiping' } }));
+      setConvertingProgress((current) => ({ ...current, [fileKey]: 18 }));
+      setActiveTransfers((current) => [...current, {
+        id: fileKey,
+        label: `${getFileExtension(nextFile).toUpperCase()}→${targetFormat.toUpperCase()}`,
+        file: nextFile,
+        stackIndex,
+      }]);
+
+      try {
+        await wait(SWIPE_DURATION_MS);
+        if (pausedRef.current || currentRunIdRef.current !== runId) {
+          controller.abort();
+          break;
+        }
+
+        setConvertingMap((current) => ({ ...current, [fileKey]: { phase: 'transitioning' } }));
+        setConvertingProgress((current) => ({ ...current, [fileKey]: 62 }));
+
+        const converted = await convertSingle({
+          file: nextFile,
+          targetFormat,
+          quality,
+          width: resizeWidth != null ? clampDimension(resizeWidth, nextFile.originalWidth || imageMetrics.originalWidth || 4000) : null,
+          height: resizeHeight != null ? clampDimension(resizeHeight, nextFile.originalHeight || imageMetrics.originalHeight || 4000) : null,
+          keepAspectRatio,
+          signal: controller.signal,
+        });
+
+        if (pausedRef.current || currentRunIdRef.current !== runId) {
+          break;
+        }
+
+        setConvertingMap((current) => ({ ...current, [fileKey]: { phase: 'arrived' } }));
+        setConvertingProgress((current) => ({ ...current, [fileKey]: 100 }));
+        setConvertedFiles((current) => [...current, converted]);
+        setFiles((current) => current.filter((file) => getFileKey(file) !== fileKey));
+
+        completedCount += 1;
+        setProgress(totalAtStart ? Math.round((completedCount / totalAtStart) * 100) : 0);
+        await wait(ARRIVAL_DURATION_MS);
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          setErrorMessage(error.message || 'Conversion failed.');
+        }
+      } finally {
+        clearProcessingStateForKey(fileKey);
+      }
+    }
+
+    if (currentRunIdRef.current === runId) {
+      setIsConverting(false);
+      setProcessing([]);
+      setActiveTransfers([]);
+    }
+  };
+
   const handleConvert = async () => {
-    if (isConverting) return;
+    if (isConverting || paused) return;
 
     if (!files.length) {
       setErrorMessage('Upload at least one image before converting.');
@@ -478,112 +768,37 @@ export default function App() {
       return;
     }
 
+    currentRunIdRef.current += 1;
+    const runId = currentRunIdRef.current;
+    pausedRef.current = false;
+
+    setPaused(false);
     setIsConverting(true);
     setErrorMessage('');
-    setConvertedFiles([]);
-    setProgress(4);
-    setConvertingMap({});
-    setConvertingProgress({});
-    setActiveTransfers([]);
-
-    const queue = formatValidation.convertibleFiles;
-    const queuedKeys = new Set(queue.map((file) => getFileKey(file)));
-    const transferItems = queue.map((file, index) => ({
-      id: getFileKey(file),
-      label: `${getFileExtension(file).toUpperCase()}→${targetFormat.toUpperCase()}`,
-      file,
-      stackIndex: index % MAX_VISIBLE_SWIPE_STACK,
-    }));
-
-    setConvertingMap(
-      Object.fromEntries(queue.map((file) => [getFileKey(file), { phase: 'swiping' }])),
-    );
-    setConvertingProgress(Object.fromEntries(queue.map((file) => [getFileKey(file), 18])));
-    setActiveTransfers(transferItems);
-    setFiles((current) => current.filter((item) => !queuedKeys.has(getFileKey(item))));
-
-    try {
-      await wait(SWIPE_DURATION_MS);
-
-      let completedCount = 0;
-
-      const results = await Promise.allSettled(
-        queue.map(async (file) => {
-          const fileKey = getFileKey(file);
-
-          setConvertingMap((current) => ({ ...current, [fileKey]: { phase: 'transitioning' } }));
-          setConvertingProgress((current) => ({ ...current, [fileKey]: 62 }));
-
-          const converted = await convertSingle({
-            file,
-            targetFormat,
-            quality,
-            width: resizeWidth != null ? clampDimension(resizeWidth, file.originalWidth || imageMetrics.originalWidth || 4000) : null,
-            height: resizeHeight != null ? clampDimension(resizeHeight, file.originalHeight || imageMetrics.originalHeight || 4000) : null,
-            keepAspectRatio,
-          });
-
-          setConvertingMap((current) => ({ ...current, [fileKey]: { phase: 'arrived' } }));
-          setConvertedFiles((current) => [...current, converted]);
-          setConvertingProgress((current) => ({ ...current, [fileKey]: 100 }));
-          setActiveTransfers((current) => current.filter((item) => item.id !== fileKey));
-
-          completedCount += 1;
-          setProgress(Math.round((completedCount / queue.length) * 100));
-          await wait(ARRIVAL_DURATION_MS);
-
-          setConvertingMap((current) => {
-            const next = { ...current };
-            delete next[fileKey];
-            return next;
-          });
-          setConvertingProgress((current) => {
-            const next = { ...current };
-            delete next[fileKey];
-            return next;
-          });
-
-          return converted;
-        }),
-      );
-
-      const failedResults = results.filter((result) => result.status === 'rejected');
-
-      if (failedResults.length) {
-        const failedFiles = queue.filter((_, index) => results[index].status === 'rejected');
-
-        setFiles((current) => [...failedFiles, ...current]);
-        setActiveTransfers((current) => current.filter((item) => !failedFiles.some((file) => getFileKey(file) === item.id)));
-        setConvertingMap((current) => {
-          const next = { ...current };
-          failedFiles.forEach((file) => {
-            delete next[getFileKey(file)];
-          });
-          return next;
-        });
-        setConvertingProgress((current) => {
-          const next = { ...current };
-          failedFiles.forEach((file) => {
-            delete next[getFileKey(file)];
-          });
-          return next;
-        });
-
-        const firstFailure = failedResults[0].reason;
-        const failureMessage = firstFailure?.message || 'Conversion failed.';
-        setErrorMessage(
-          failedResults.length === queue.length
-            ? failureMessage
-            : `${failedResults.length} of ${queue.length} conversions failed. ${failureMessage}`,
-        );
-
-        if (completedCount === 0) {
-          setProgress(0);
-        }
-      }
-    } finally {
-      setIsConverting(false);
+    if (!convertedFiles.length) {
+      setProgress(4);
     }
+
+    await processQueue(runId);
+  };
+
+  const handlePause = () => {
+    if (!isConverting) return;
+    pausedRef.current = true;
+    setPaused(true);
+    setIsConverting(false);
+    Object.values(abortControllersRef.current).forEach((controller) => controller.abort());
+  };
+
+  const handleResume = async () => {
+    if (!paused) return;
+    setErrorMessage('');
+    pausedRef.current = false;
+    setPaused(false);
+    currentRunIdRef.current += 1;
+    const runId = currentRunIdRef.current;
+    setIsConverting(true);
+    await processQueue(runId);
   };
 
   const downloadConvertedFile = async (file) => {
@@ -672,7 +887,7 @@ export default function App() {
           </div>
         </section>
 
-        <ProgressBar value={progress} visible={isConverting || progress === 100} />
+        <ProgressBar value={progress} visible={isConverting || paused || progress === 100} />
         {errorMessage ? <p className="helper-text helper-text--error">{errorMessage}</p> : null}
 
         <div className="split-layout split-layout--bottom-rail">
@@ -687,6 +902,10 @@ export default function App() {
               convertingMap={convertingMap}
               convertingProgress={convertingProgress}
               onRemove={handleRemoveFile}
+              onCancel={handleCancelItem}
+              onReorder={handleReorder}
+              paused={paused}
+              queueSummary={queueSummary}
             />
           </section>
 
@@ -740,6 +959,14 @@ export default function App() {
                   <p>{formatValidation.message}</p>
                 </div>
               ) : null}
+
+              <QueuePanel
+                paused={paused}
+                converting={isConverting}
+                queueSummary={queueSummary}
+                onPause={handlePause}
+                onResume={handleResume}
+              />
 
               <div className="action-panel__bottom">
                 <div className="flow-arrow" aria-hidden="true">
