@@ -1,6 +1,0 @@
-{
-  "from": "svg",
-  "to": "png",
-  "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/fixtures/sample-svg.svg",
-  "output": "sample-svg.png"
-}

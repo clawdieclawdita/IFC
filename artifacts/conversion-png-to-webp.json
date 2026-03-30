@@ -1,6 +1,0 @@
-{
-  "from": "png",
-  "to": "webp",
-  "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/fixtures/sample-png.png",
-  "output": "sample-png.webp"
-}

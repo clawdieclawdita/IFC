@@ -1,6 +1,0 @@
-{
-  "from": "bmp",
-  "to": "jpg",
-  "path": "/home/pschivo/.openclaw/workspace-devo/image-converter-app/e2e/fixtures/sample-bmp.bmp",
-  "output": "sample-bmp.jpg"
-}
