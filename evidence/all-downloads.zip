@@ -1,0 +1,21 @@
+{
+  "targetFormat": "webp",
+  "files": [
+    {
+      "id": "sample-landscape.svg-0",
+      "originalName": "sample-landscape.svg",
+      "convertedName": "sample-landscape.webp",
+      "blobBase64": "bW9jay1iaW5hcnktc2FtcGxlLWxhbmRzY2FwZS5zdmctd2VicA==",
+      "mimeType": "image/webp",
+      "size": 647
+    },
+    {
+      "id": "sample-card.svg-1",
+      "originalName": "sample-card.svg",
+      "convertedName": "sample-card.webp",
+      "blobBase64": "bW9jay1iaW5hcnktc2FtcGxlLWNhcmQuc3ZnLXdlYnA=",
+      "mimeType": "image/webp",
+      "size": 594
+    }
+  ]
+}
