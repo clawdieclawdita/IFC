@@ -107,3 +107,25 @@ For similar UI polish tasks, remove dead status wrappers in JSX and re-center th
 - **Notes**: Verified by successful production build and screenshots from the running app.
 
 ---
+## [LRN-20260330-001] best_practice
+
+**Logged**: 2026-03-30T13:39:00Z
+**Priority**: medium
+**Status**: pending
+**Area**: frontend
+
+### Summary
+Preservation settings work better when UI state, localStorage keys, API payloads, and ZIP naming/path rules are updated together in one pass.
+
+### Details
+Phase 5 required adding preserveMetadata, filenameConvention, customFilenamePattern, and preserveFolderStructure across React state, persisted settings, upload file metadata, API form fields, and server-side ZIP entry construction. Capturing relativePath on upload is necessary to preserve folder structure later during ZIP creation.
+
+### Suggested Action
+When adding new conversion settings, always trace them through: component state -> localStorage -> API payload -> server parsing -> response payload -> ZIP/export path behavior.
+
+### Metadata
+- Source: conversation
+- Related Files: src/App.jsx,src/components/PrivacyPanel.jsx,src/components/FilenamePanel.jsx,src/lib/api.js,server.js
+- Tags: settings-storage, filename-patterns, folder-structure, metadata
+
+---
