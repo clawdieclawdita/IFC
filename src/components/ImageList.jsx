@@ -26,7 +26,24 @@ function Preview({ file }) {
     return <span>{file.name.slice(0, 2).toUpperCase()}</span>;
   }
 
-  return <img src={src} alt={file.name} />;
+  const crop = file.crop || { top: 0, right: 0, bottom: 0, left: 0 };
+
+  return (
+    <div className="image-preview-stack">
+      <img
+        src={src}
+        alt={file.name}
+        style={{
+          transform: `rotate(${Number(file.rotation) || 0}deg)`,
+        }}
+      />
+      {(crop.top || crop.right || crop.bottom || crop.left) ? (
+        <div className="crop-overlay" aria-hidden="true">
+          <div className="crop-overlay__frame" style={{ inset: `${crop.top}% ${crop.right}% ${crop.bottom}% ${crop.left}%` }} />
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export default function ImageList({
@@ -39,6 +56,7 @@ export default function ImageList({
   onRemove,
   onCancel,
   onReorder,
+  onOpenEditor,
   compact = false,
   paused = false,
 }) {
@@ -64,7 +82,6 @@ export default function ImageList({
     setDragOverIndex(index);
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', String(index));
-    console.log('[drag:start]', { index, name: files[index]?.name });
   };
 
   const handleDragOver = (event, index) => {
@@ -81,12 +98,6 @@ export default function ImageList({
     event.stopPropagation();
     const dataTransferIndex = Number.parseInt(event.dataTransfer.getData('text/plain'), 10);
     const fromIndex = Number.isInteger(dataTransferIndex) ? dataTransferIndex : draggedIndex;
-    console.log('[drag:drop]', {
-      fromIndex,
-      toIndex,
-      draggedIndex,
-      names: files.map((file) => file.name),
-    });
     if (Number.isInteger(fromIndex) && fromIndex !== toIndex) {
       onReorder?.(fromIndex, toIndex);
     }
@@ -104,7 +115,7 @@ export default function ImageList({
       <div className="section-heading section-heading--zone">
         <div>
           <h3>{files.length} image{files.length > 1 ? 's' : ''} loaded</h3>
-          <p className="section-copy">Drag cards to reorder the queue. Cancel removes a file from the batch without affecting the rest.</p>
+          <p className="section-copy">Drag cards to reorder the queue. Use the crop or rotation icons to edit each image.</p>
         </div>
         <span className="pill">{files.length} pending</span>
       </div>
@@ -152,6 +163,26 @@ export default function ImageList({
                   title="Cancel this item"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  className="image-card__icon-button"
+                  onClick={() => onOpenEditor?.(file, 'rotate')}
+                  disabled={isProcessing}
+                  aria-label={`Open rotation editor for ${file.name}`}
+                  title="Rotate image"
+                >
+                  ↻
+                </button>
+                <button
+                  type="button"
+                  className="image-card__icon-button"
+                  onClick={() => onOpenEditor?.(file, 'crop')}
+                  disabled={isProcessing}
+                  aria-label={`Open crop editor for ${file.name}`}
+                  title="Crop image"
+                >
+                  ✂️
                 </button>
                 <button
                   type="button"

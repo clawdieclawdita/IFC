@@ -47,6 +47,8 @@ export const convertSingle = async ({
   filenameConvention,
   customFilenamePattern,
   preserveFolderStructure,
+  rotation,
+  crop,
   signal,
 }) => {
   if (USE_MOCK_API) {
@@ -56,7 +58,7 @@ export const convertSingle = async ({
       originalName: file.name,
       convertedName: file.name.replace(/\.[^.]+$/, '') + `.${targetFormat}`,
       relativePath: file.relativePath || file.webkitRelativePath || '',
-      blobBase64: btoa(`mock-binary-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}-${stripMetadata}-${preserveMetadata}-${filenameConvention}-${customFilenamePattern}-${preserveFolderStructure}`),
+      blobBase64: btoa(`mock-binary-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}-${stripMetadata}-${preserveMetadata}-${filenameConvention}-${customFilenamePattern}-${preserveFolderStructure}-${rotation ?? 0}-${JSON.stringify(crop || {})}`),
       mimeType: `image/${targetFormat === 'jpg' ? 'jpeg' : targetFormat}`,
       size: estimateMockSize({ file, targetFormat, quality, width, height }),
     };
@@ -75,6 +77,8 @@ export const convertSingle = async ({
   formData.append('customFilenamePattern', customFilenamePattern || '');
   formData.append('preserveFolderStructure', String(Boolean(preserveFolderStructure)));
   formData.append('relativePath', file.relativePath || file.webkitRelativePath || '');
+  formData.append('rotation', String(Number(rotation) || 0));
+  formData.append('crop', JSON.stringify(crop || { top: 0, right: 0, bottom: 0, left: 0 }));
 
   const response = await fetch('/api/convert', {
     method: 'POST',

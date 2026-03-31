@@ -52,6 +52,9 @@ export default function UploadZone({
   onRemove,
   onCancel,
   onReorder,
+  onRotationChange,
+  onCropChange,
+  onOpenEditor,
   paused,
   queueSummary,
 }) {
@@ -220,6 +223,9 @@ export default function UploadZone({
         onRemove={onRemove}
         onCancel={onCancel}
         onReorder={onReorder}
+        onRotationChange={onRotationChange}
+        onCropChange={onCropChange}
+        onOpenEditor={onOpenEditor}
         paused={paused}
         compact
       />

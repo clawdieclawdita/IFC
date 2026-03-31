@@ -277,6 +277,52 @@ function parseOptionalBoolean(value, fallback = true) {
   return String(value).toLowerCase() === 'true';
 }
 
+function parseRotation(value) {
+  if (value == null || value === '') return 0;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    const error = new Error('rotation must be a number');
+    error.status = 400;
+    throw error;
+  }
+
+  const normalized = ((Math.round(numeric) % 360) + 360) % 360;
+  if (![0, 90, 180, 270].includes(normalized)) {
+    const error = new Error('rotation must be one of 0, 90, 180, or 270');
+    error.status = 400;
+    throw error;
+  }
+
+  return normalized;
+}
+
+function parseCrop(value) {
+  if (value == null || value === '') {
+    return { top: 0, right: 0, bottom: 0, left: 0 };
+  }
+
+  const crop = typeof value === 'string' ? JSON.parse(value) : value;
+  const result = {};
+
+  for (const edge of ['top', 'right', 'bottom', 'left']) {
+    const numeric = Number(crop?.[edge] ?? 0);
+    if (!Number.isFinite(numeric) || numeric < 0 || numeric > 90) {
+      const error = new Error(`crop.${edge} must be between 0 and 90`);
+      error.status = 400;
+      throw error;
+    }
+    result[edge] = Math.round(numeric);
+  }
+
+  if (result.left + result.right >= 100 || result.top + result.bottom >= 100) {
+    const error = new Error('crop percentages leave no visible image area');
+    error.status = 400;
+    throw error;
+  }
+
+  return result;
+}
+
 function parseConvertOptions(body = {}, targetFormat) {
   const quality = parseOptionalNumber(body.quality, 'quality');
   const width = parseOptionalNumber(body.width, 'width');
@@ -285,6 +331,8 @@ function parseConvertOptions(body = {}, targetFormat) {
   const stripMetadata = parseOptionalBoolean(body.stripMetadata, false);
   const preserveMetadata = parseOptionalBoolean(body.preserveMetadata, false);
   const preserveFolderStructure = parseOptionalBoolean(body.preserveFolderStructure, false);
+  const rotation = parseRotation(body.rotation);
+  const crop = parseCrop(body.crop);
   const filenameConvention = ['original', 'timestamp', 'custom'].includes(body.filenameConvention)
     ? body.filenameConvention
     : 'original';
@@ -316,7 +364,26 @@ function parseConvertOptions(body = {}, targetFormat) {
     customFilenamePattern,
     preserveFolderStructure,
     relativePath,
+    rotation,
+    crop,
   };
+}
+
+function getExtractRegion({ width, height, crop }) {
+  const left = Math.round(width * ((crop.left || 0) / 100));
+  const right = Math.round(width * ((crop.right || 0) / 100));
+  const top = Math.round(height * ((crop.top || 0) / 100));
+  const bottom = Math.round(height * ((crop.bottom || 0) / 100));
+  const extractWidth = width - left - right;
+  const extractHeight = height - top - bottom;
+
+  if (extractWidth < 1 || extractHeight < 1) {
+    const error = new Error('Crop settings result in an empty image');
+    error.status = 400;
+    throw error;
+  }
+
+  return { left, top, width: extractWidth, height: extractHeight };
 }
 
 const storage = multer.diskStorage({
@@ -368,6 +435,8 @@ async function convertImageFile(file, targetFormat, options = {}) {
     stripMetadata = false,
     preserveMetadata = false,
     relativePath = '',
+    rotation = 0,
+    crop = { top: 0, right: 0, bottom: 0, left: 0 },
   } = options;
   const metadata = await createSharpPipeline(sharpInput).metadata();
   const originalWidth = metadata.width || null;
@@ -396,6 +465,13 @@ async function convertImageFile(file, targetFormat, options = {}) {
 
   if (format === 'svg') {
     let svgPipeline = createSharpPipeline(sharpInput);
+    if (rotation) {
+      svgPipeline = svgPipeline.rotate(rotation);
+    }
+    if (crop.top || crop.right || crop.bottom || crop.left) {
+      const cropMetadata = await svgPipeline.metadata();
+      svgPipeline = svgPipeline.extract(getExtractRegion({ width: cropMetadata.width, height: cropMetadata.height, crop }));
+    }
     if (width || height) {
       svgPipeline = svgPipeline.resize({ width: width || null, height: height || null, fit: 'inside', withoutEnlargement: true });
     }
@@ -411,6 +487,15 @@ async function convertImageFile(file, targetFormat, options = {}) {
   }
 
   let pipeline = createSharpPipeline(sharpInput);
+
+  if (rotation) {
+    pipeline = pipeline.rotate(rotation);
+  }
+
+  if (crop.top || crop.right || crop.bottom || crop.left) {
+    const rotatedMetadata = await pipeline.metadata();
+    pipeline = pipeline.extract(getExtractRegion({ width: rotatedMetadata.width, height: rotatedMetadata.height, crop }));
+  }
 
   if (width || height) {
     pipeline = pipeline.resize({
@@ -494,6 +579,8 @@ app.post('/api/convert', upload.single('image'), async (req, res, next) => {
       customFilenamePattern: options.customFilenamePattern,
       preserveFolderStructure: options.preserveFolderStructure,
       relativePath: options.relativePath,
+      rotation: options.rotation,
+      crop: options.crop,
     });
 
     const { outputName, convertedName, relativePath } = await convertImageFile(req.file, targetFormat, options);

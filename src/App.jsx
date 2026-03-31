@@ -8,6 +8,7 @@ import ProgressBar from './components/ProgressBar';
 import QueuePanel from './components/QueuePanel';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { SettingsPanel } from './components/SettingsPanel';
+import ImageEditor from './components/ImageEditor';
 import UploadZone from './components/UploadZone';
 import { convertSingle, createZip, triggerDownload } from './lib/api';
 
@@ -35,6 +36,8 @@ const STORAGE_KEYS = {
   reducedMotion: 'image-converter.reducedMotion',
   queue: 'image-converter.queue',
 };
+
+const DEFAULT_CROP = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
 
 const FORMAT_SIZE_MULTIPLIERS = {
   jpg: 0.82,
@@ -187,6 +190,13 @@ const serializeQueueFile = async (file) => ({
   originalWidth: file.originalWidth || 0,
   originalHeight: file.originalHeight || 0,
   relativePath: file.relativePath || file.webkitRelativePath || '',
+  rotation: Number(file.rotation) || 0,
+  crop: {
+    top: Number(file.crop?.top) || 0,
+    right: Number(file.crop?.right) || 0,
+    bottom: Number(file.crop?.bottom) || 0,
+    left: Number(file.crop?.left) || 0,
+  },
   dataUrl: await blobToDataUrl(file),
 });
 
@@ -237,7 +247,49 @@ const deserializeQueueFile = async (record) => {
     originalWidth: record.originalWidth || 0,
     originalHeight: record.originalHeight || 0,
     relativePath: record.relativePath || '',
+    rotation: Number(record.rotation) || 0,
+    crop: {
+      top: Number(record.crop?.top) || 0,
+      right: Number(record.crop?.right) || 0,
+      bottom: Number(record.crop?.bottom) || 0,
+      left: Number(record.crop?.left) || 0,
+    },
   });
+};
+
+const normalizeRotation = (value) => {
+  const numeric = Number(value) || 0;
+  const normalized = ((numeric % 360) + 360) % 360;
+  return normalized;
+};
+
+const clampCropPercent = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(90, Math.round(numeric)));
+};
+
+const normalizeCrop = (crop = DEFAULT_CROP) => {
+  const next = {
+    top: clampCropPercent(crop.top),
+    right: clampCropPercent(crop.right),
+    bottom: clampCropPercent(crop.bottom),
+    left: clampCropPercent(crop.left),
+  };
+
+  if (next.left + next.right > 90) {
+    const overflow = next.left + next.right - 90;
+    if (next.right >= overflow) next.right -= overflow;
+    else next.left = Math.max(0, next.left - (overflow - next.right));
+  }
+
+  if (next.top + next.bottom > 90) {
+    const overflow = next.top + next.bottom - 90;
+    if (next.bottom >= overflow) next.bottom -= overflow;
+    else next.top = Math.max(0, next.top - (overflow - next.bottom));
+  }
+
+  return next;
 };
 
 function SwipePreview({ file }) {
@@ -331,6 +383,7 @@ export default function App() {
   const [preserveFolderStructure, setPreserveFolderStructure] = useState(() => parseBooleanStorage(STORAGE_KEYS.preserveFolderStructure, false));
   const [darkMode, setDarkMode] = useState(() => parseOptionalBooleanStorage(STORAGE_KEYS.darkMode));
   const [reducedMotion, setReducedMotion] = useState(() => parseOptionalBooleanStorage(STORAGE_KEYS.reducedMotion));
+  const [editingSession, setEditingSession] = useState(null);
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false));
   const [systemPrefersReducedMotion, setSystemPrefersReducedMotion] = useState(() => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false));
@@ -527,6 +580,11 @@ export default function App() {
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
+        if (editingSession) {
+          setEditingSession(null);
+          return;
+        }
+
         if (isKeyboardShortcutsOpen) {
           setIsKeyboardShortcutsOpen(false);
           return;
@@ -564,7 +622,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activePanel, isKeyboardShortcutsOpen]);
+  }, [activePanel, editingSession, isKeyboardShortcutsOpen]);
 
   useEffect(() => {
     if (!autoClearOnExit || typeof window === 'undefined') return undefined;
@@ -831,7 +889,10 @@ export default function App() {
     const nextFiles = (() => {
       const deduped = new Map(filesRef.current.map((file) => [getFileKey(file), file]));
       enrichedIncomingFiles.forEach((file) => {
-        deduped.set(getFileKey(file), file);
+        deduped.set(getFileKey(file), Object.assign(file, {
+          rotation: normalizeRotation(file.rotation),
+          crop: normalizeCrop(file.crop),
+        }));
       });
       return Array.from(deduped.values());
     })();
@@ -914,6 +975,61 @@ export default function App() {
     });
   };
 
+  const updateFileTransform = (fileToUpdate, updates) => {
+    const fileKey = getFileKey(fileToUpdate);
+    setFiles((current) => current.map((file) => {
+      if (getFileKey(file) !== fileKey) return file;
+      return Object.assign(file, updates);
+    }));
+  };
+
+  const handleRotationChange = (fileToUpdate, nextRotation) => {
+    updateFileTransform(fileToUpdate, { rotation: normalizeRotation(nextRotation) });
+  };
+
+  const handleCropChange = (fileToUpdate, edge, value) => {
+    const nextCrop = normalizeCrop({
+      ...(fileToUpdate.crop || DEFAULT_CROP),
+      [edge]: value,
+    });
+    updateFileTransform(fileToUpdate, { crop: nextCrop });
+  };
+
+  const handleOpenEditor = (file, focusMode = 'rotate') => {
+    setEditingSession({ fileKey: getFileKey(file), focusMode });
+  };
+
+  const handleCloseEditor = () => {
+    setEditingSession(null);
+  };
+
+  const handleSaveEditor = async (fileToUpdate, { rotation, crop }) => {
+    const normalizedUpdates = {
+      rotation: normalizeRotation(rotation),
+      crop: normalizeCrop(crop),
+    };
+    const fileKey = getFileKey(fileToUpdate);
+    const nextFiles = filesRef.current.map((file) => (
+      getFileKey(file) === fileKey ? Object.assign(file, normalizedUpdates) : file
+    ));
+
+    setFiles(nextFiles);
+    filesRef.current = nextFiles;
+
+    try {
+      await persistQueueState({
+        files: nextFiles,
+        convertedFiles: convertedFilesRef.current,
+        paused: pausedRef.current,
+        processing: processingRef.current,
+      });
+    } catch (error) {
+      console.error('[editor:save] immediate persist failed', error);
+    }
+
+    setEditingSession(null);
+  };
+
   const handleClearAll = () => {
     if (!canClearAll) return;
 
@@ -956,11 +1072,16 @@ export default function App() {
     setActivePanel(null);
   };
 
+  const editingFile = editingSession
+    ? files.find((file) => getFileKey(file) === editingSession.fileKey) || null
+    : null;
+
   const processQueue = async (runId) => {
     const totalAtStart = filesRef.current.length + convertedFilesRef.current.length;
     let completedCount = convertedFilesRef.current.length;
+    let shouldStopAfterError = false;
 
-    while (!pausedRef.current) {
+    while (!pausedRef.current && !shouldStopAfterError) {
       const nextFile = filesRef.current.find((file) => getFileExtension(file) !== targetFormat);
       if (!nextFile) break;
 
@@ -1001,6 +1122,8 @@ export default function App() {
           filenameConvention,
           customFilenamePattern,
           preserveFolderStructure,
+          rotation: normalizeRotation(nextFile.rotation),
+          crop: normalizeCrop(nextFile.crop),
           signal: controller.signal,
         });
 
@@ -1018,7 +1141,8 @@ export default function App() {
         await wait(ARRIVAL_DURATION_MS);
       } catch (error) {
         if (error?.name !== 'AbortError') {
-          setErrorMessage(error.message || 'Conversion failed.');
+          shouldStopAfterError = true;
+          setErrorMessage(error.message || `Conversion failed for ${nextFile.name}.`);
         }
       } finally {
         clearProcessingStateForKey(fileKey);
@@ -1164,6 +1288,12 @@ export default function App() {
           isOpen={isKeyboardShortcutsOpen}
           onClose={() => setIsKeyboardShortcutsOpen(false)}
         />
+        <ImageEditor
+          file={editingFile}
+          initialMode={editingSession?.focusMode || 'rotate'}
+          onClose={handleCloseEditor}
+          onSave={handleSaveEditor}
+        />
       </div>
 
       <main className="app-card app-card--split app-card--with-menu">
@@ -1194,6 +1324,9 @@ export default function App() {
               onRemove={handleRemoveFile}
               onCancel={handleCancelItem}
               onReorder={handleReorder}
+              onRotationChange={handleRotationChange}
+              onCropChange={handleCropChange}
+              onOpenEditor={handleOpenEditor}
               paused={paused}
               queueSummary={queueSummary}
             />
