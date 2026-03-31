@@ -16,32 +16,24 @@ function Preview({ file }) {
   useEffect(() => {
     if (!file?.type?.startsWith('image/')) return undefined;
 
+    if (file.thumbnailDataUrl) {
+      setSrc(file.thumbnailDataUrl);
+      return undefined;
+    }
+
     const objectUrl = URL.createObjectURL(file);
     setSrc(objectUrl);
 
     return () => URL.revokeObjectURL(objectUrl);
-  }, [file]);
+  }, [file, file?.thumbnailDataUrl, file?.type, file?.name, file?.size, file?.lastModified]);
 
   if (!file?.type?.startsWith('image/')) {
     return <span>{file.name.slice(0, 2).toUpperCase()}</span>;
   }
 
-  const crop = file.crop || { top: 0, right: 0, bottom: 0, left: 0 };
-
   return (
     <div className="image-preview-stack">
-      <img
-        src={src}
-        alt={file.name}
-        style={{
-          transform: `rotate(${Number(file.rotation) || 0}deg)`,
-        }}
-      />
-      {(crop.top || crop.right || crop.bottom || crop.left) ? (
-        <div className="crop-overlay" aria-hidden="true">
-          <div className="crop-overlay__frame" style={{ inset: `${crop.top}% ${crop.right}% ${crop.bottom}% ${crop.left}%` }} />
-        </div>
-      ) : null}
+      <img src={src} alt={file.name} />
     </div>
   );
 }

@@ -301,7 +301,15 @@ function parseCrop(value) {
     return { top: 0, right: 0, bottom: 0, left: 0 };
   }
 
-  const crop = typeof value === 'string' ? JSON.parse(value) : value;
+  let crop;
+  try {
+    crop = typeof value === 'string' ? JSON.parse(value) : value;
+  } catch {
+    const error = new Error('crop must be valid JSON');
+    error.status = 400;
+    throw error;
+  }
+
   const result = {};
 
   for (const edge of ['top', 'right', 'bottom', 'left']) {
@@ -367,6 +375,18 @@ function parseConvertOptions(body = {}, targetFormat) {
     rotation,
     crop,
   };
+}
+
+function getCropSpaceDimensions({ width, height, rotation = 0 }) {
+  if (!width || !height) {
+    const error = new Error('Unable to determine image dimensions for crop operation');
+    error.status = 400;
+    throw error;
+  }
+
+  return rotation % 180 === 0
+    ? { width, height }
+    : { width: height, height: width };
 }
 
 function getExtractRegion({ width, height, crop }) {
@@ -469,8 +489,8 @@ async function convertImageFile(file, targetFormat, options = {}) {
       svgPipeline = svgPipeline.rotate(rotation);
     }
     if (crop.top || crop.right || crop.bottom || crop.left) {
-      const cropMetadata = await svgPipeline.metadata();
-      svgPipeline = svgPipeline.extract(getExtractRegion({ width: cropMetadata.width, height: cropMetadata.height, crop }));
+      const cropSpace = getCropSpaceDimensions({ width: originalWidth, height: originalHeight, rotation });
+      svgPipeline = svgPipeline.extract(getExtractRegion({ width: cropSpace.width, height: cropSpace.height, crop }));
     }
     if (width || height) {
       svgPipeline = svgPipeline.resize({ width: width || null, height: height || null, fit: 'inside', withoutEnlargement: true });
@@ -493,8 +513,8 @@ async function convertImageFile(file, targetFormat, options = {}) {
   }
 
   if (crop.top || crop.right || crop.bottom || crop.left) {
-    const rotatedMetadata = await pipeline.metadata();
-    pipeline = pipeline.extract(getExtractRegion({ width: rotatedMetadata.width, height: rotatedMetadata.height, crop }));
+    const cropSpace = getCropSpaceDimensions({ width: originalWidth, height: originalHeight, rotation });
+    pipeline = pipeline.extract(getExtractRegion({ width: cropSpace.width, height: cropSpace.height, crop }));
   }
 
   if (width || height) {

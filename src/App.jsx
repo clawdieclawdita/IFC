@@ -65,6 +65,55 @@ const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
   reader.readAsDataURL(blob);
 });
 
+const loadImageElement = (src) => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = () => reject(new Error('Failed to load image for thumbnail generation.'));
+  image.src = src;
+});
+
+const generateThumbnailDataUrl = async (file, { rotation = 0, crop = DEFAULT_CROP } = {}) => {
+  if (typeof window === 'undefined' || !file?.type?.startsWith('image/')) {
+    return '';
+  }
+
+  const sourceUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await loadImageElement(sourceUrl);
+    const normalizedRotation = normalizeRotation(rotation);
+    const normalizedCrop = normalizeCrop(crop);
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    const rotatedWidth = normalizedRotation % 180 === 0 ? sourceWidth : sourceHeight;
+    const rotatedHeight = normalizedRotation % 180 === 0 ? sourceHeight : sourceWidth;
+    const cropLeft = Math.round(rotatedWidth * (normalizedCrop.left / 100));
+    const cropRight = Math.round(rotatedWidth * (normalizedCrop.right / 100));
+    const cropTop = Math.round(rotatedHeight * (normalizedCrop.top / 100));
+    const cropBottom = Math.round(rotatedHeight * (normalizedCrop.bottom / 100));
+    const outputWidth = Math.max(1, rotatedWidth - cropLeft - cropRight);
+    const outputHeight = Math.max(1, rotatedHeight - cropTop - cropBottom);
+    const canvas = document.createElement('canvas');
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Failed to create thumbnail canvas context.');
+    }
+
+    context.save();
+    context.translate(rotatedWidth / 2 - cropLeft, rotatedHeight / 2 - cropTop);
+    context.rotate((normalizedRotation * Math.PI) / 180);
+    context.drawImage(image, -sourceWidth / 2, -sourceHeight / 2, sourceWidth, sourceHeight);
+    context.restore();
+
+    return canvas.toDataURL('image/png');
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+};
+
 const dataUrlToFile = async ({ dataUrl, name, type, lastModified }) => {
   const response = await fetch(dataUrl);
   const blob = await response.blob();
@@ -197,6 +246,7 @@ const serializeQueueFile = async (file) => ({
     bottom: Number(file.crop?.bottom) || 0,
     left: Number(file.crop?.left) || 0,
   },
+  thumbnailDataUrl: file.thumbnailDataUrl || '',
   dataUrl: await blobToDataUrl(file),
 });
 
@@ -254,6 +304,7 @@ const deserializeQueueFile = async (record) => {
       bottom: Number(record.crop?.bottom) || 0,
       left: Number(record.crop?.left) || 0,
     },
+    thumbnailDataUrl: record.thumbnailDataUrl || '',
   });
 };
 
@@ -1008,9 +1059,13 @@ export default function App() {
       rotation: normalizeRotation(rotation),
       crop: normalizeCrop(crop),
     };
+    const thumbnailDataUrl = await generateThumbnailDataUrl(fileToUpdate, normalizedUpdates).catch((error) => {
+      console.error('[editor:save] thumbnail generation failed', error);
+      return fileToUpdate.thumbnailDataUrl || '';
+    });
     const fileKey = getFileKey(fileToUpdate);
     const nextFiles = filesRef.current.map((file) => (
-      getFileKey(file) === fileKey ? Object.assign(file, normalizedUpdates) : file
+      getFileKey(file) === fileKey ? Object.assign(file, { ...normalizedUpdates, thumbnailDataUrl }) : file
     ));
 
     setFiles(nextFiles);
