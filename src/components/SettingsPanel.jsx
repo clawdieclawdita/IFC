@@ -39,6 +39,19 @@ function AppearancePanel({ settings, onChange, onOpenKeyboardShortcuts }) {
       </div>
 
       <div className="setting-item">
+        <label className="checkbox-label" htmlFor="appearance-celebration-sound">
+          <input
+            id="appearance-celebration-sound"
+            type="checkbox"
+            checked={settings.celebrationSoundEnabled}
+            onChange={(event) => onChange('celebrationSoundEnabled', event.target.checked)}
+          />
+          <span>Celebration sound</span>
+        </label>
+        <p className="setting-helper">Play a subtle chime for achievements, streaks, and batch milestones.</p>
+      </div>
+
+      <div className="setting-item">
         <button type="button" className="secondary-button secondary-button--small" onClick={onOpenKeyboardShortcuts}>
           View keyboard shortcuts
         </button>

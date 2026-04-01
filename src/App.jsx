@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import ConvertButton from './components/ConvertButton';
 import ConvertedZone from './components/ConvertedZone';
+import DailyGoalPanel from './components/DailyGoalPanel';
 import FormatSelector from './components/FormatSelector';
 import { MenuBar } from './components/MenuBar';
 import { OfflineBadge } from './components/OfflineBadge';
@@ -10,7 +14,17 @@ import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { SettingsPanel } from './components/SettingsPanel';
 import ImageEditor from './components/ImageEditor';
 import UploadZone from './components/UploadZone';
+import XpProgress from './components/XpProgress';
 import { convertSingle, createZip, triggerDownload } from './lib/api';
+import {
+  ACHIEVEMENT_DEFINITIONS as ACHIEVEMENT_SYSTEM_DEFINITIONS,
+  getAchievementsView,
+  loadAchievementsState,
+  persistAchievementsState,
+  registerConversionBatch,
+  resetSessionAchievements,
+} from './utils/achievements';
+import { awardXp, loadXpState, persistXpState } from './utils/xp';
 
 const EXTENSION_ALIASES = {
   jpeg: 'jpg',
@@ -34,7 +48,59 @@ const STORAGE_KEYS = {
   preserveFolderStructure: 'image-converter.preserveFolderStructure',
   darkMode: 'image-converter.darkMode',
   reducedMotion: 'image-converter.reducedMotion',
+  celebrationSoundEnabled: 'image-converter.celebrationSoundEnabled',
+  celebrationStats: 'image-converter.celebrationStats',
+  dailyGoal: 'image-converter.dailyGoal',
+  dailyGoalState: 'image-converter.dailyGoalState',
   queue: 'image-converter.queue',
+};
+
+const XP_PER_CONVERSION = 25;
+
+const getTodayStamp = () => new Date().toISOString().slice(0, 10);
+
+const getDefaultCelebrationStats = () => ({
+  totalConversions: 0,
+  currentStreak: 1,
+  bestStreak: 1,
+  lastActiveDate: getTodayStamp(),
+  weeklyConversions: 0,
+  weeklyWindowStart: getTodayStamp(),
+  unlockedAchievements: [],
+});
+
+const getDaysBetween = (start, end) => {
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+  return Math.round((endDate - startDate) / 86400000);
+};
+
+const normalizeCelebrationStats = (value) => {
+  const fallback = getDefaultCelebrationStats();
+  if (!value || typeof value !== 'object') return fallback;
+
+  return {
+    totalConversions: Number(value.totalConversions) || 0,
+    currentStreak: Math.max(1, Number(value.currentStreak) || 1),
+    bestStreak: Math.max(1, Number(value.bestStreak) || 1),
+    lastActiveDate: typeof value.lastActiveDate === 'string' ? value.lastActiveDate : fallback.lastActiveDate,
+    weeklyConversions: Math.max(0, Number(value.weeklyConversions) || 0),
+    weeklyWindowStart: typeof value.weeklyWindowStart === 'string' ? value.weeklyWindowStart : fallback.weeklyWindowStart,
+    unlockedAchievements: Array.isArray(value.unlockedAchievements) ? value.unlockedAchievements : [],
+  };
+};
+
+const parseCelebrationStorage = () => {
+  if (typeof window === 'undefined') return getDefaultCelebrationStats();
+
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEYS.celebrationStats);
+    if (!raw) return getDefaultCelebrationStats();
+    return normalizeCelebrationStats(JSON.parse(raw));
+  } catch (error) {
+    console.warn('[celebration:stats] failed to parse, resetting', error);
+    return getDefaultCelebrationStats();
+  }
 };
 
 const DEFAULT_CROP = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
@@ -160,6 +226,47 @@ const clampDimension = (value, max = 4000) => {
   if (!Number.isFinite(numeric)) return null;
   const cappedMax = Math.max(1, Math.min(4000, Math.round(max || 4000)));
   return Math.max(1, Math.min(cappedMax, Math.round(numeric)));
+};
+
+const clampDailyGoal = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 10;
+  return Math.max(1, Math.min(100, Math.round(numeric)));
+};
+
+const getLocalDateKey = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const getDayDiff = (fromDateKey, toDateKey) => {
+  if (!fromDateKey || !toDateKey) return Number.POSITIVE_INFINITY;
+  const from = new Date(`${fromDateKey}T00:00:00`);
+  const to = new Date(`${toDateKey}T00:00:00`);
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+};
+
+const createDefaultDailyGoalState = () => ({
+  count: 0,
+  streak: 0,
+  lastActiveDate: getLocalDateKey(),
+  lastCompletedDate: null,
+  completedToday: false,
+  lastResetAt: new Date().toISOString(),
+});
+
+const normalizeDailyGoalState = (value) => {
+  const fallback = createDefaultDailyGoalState();
+  if (!value || typeof value !== 'object') return fallback;
+
+  return {
+    count: Math.max(0, Number(value.count) || 0),
+    streak: Math.max(0, Number(value.streak) || 0),
+    lastActiveDate: typeof value.lastActiveDate === 'string' ? value.lastActiveDate : fallback.lastActiveDate,
+    lastCompletedDate: typeof value.lastCompletedDate === 'string' ? value.lastCompletedDate : null,
+    completedToday: Boolean(value.completedToday),
+    lastResetAt: typeof value.lastResetAt === 'string' ? value.lastResetAt : fallback.lastResetAt,
+  };
 };
 
 const readImageDimensions = (file) => new Promise((resolve) => {
@@ -362,6 +469,8 @@ function SwipePreview({ file }) {
   return <img src={src} alt={file.name} />;
 }
 
+gsap.registerPlugin(useGSAP, ScrollTrigger);
+
 function DarkModeToggle({ darkMode, resolvedDarkMode, onChange }) {
   const currentMode = darkMode === null ? 'auto' : darkMode ? 'dark' : 'light';
   const nextMode = currentMode === 'light' ? 'auto' : currentMode === 'auto' ? 'dark' : 'light';
@@ -397,7 +506,36 @@ function DarkModeToggle({ darkMode, resolvedDarkMode, onChange }) {
   );
 }
 
+function CelebrationToast({ toast, onDismiss }) {
+  return (
+    <article
+      className={`celebration-toast celebration-toast--${toast.variant || 'achievement'}`}
+      role="status"
+      aria-live="polite"
+      onClick={() => onDismiss(toast.id)}
+    >
+      <div className="celebration-toast__badge" aria-hidden="true">{toast.icon || '✨'}</div>
+      <div className="celebration-toast__copy">
+        <strong>{toast.title}</strong>
+        <p>{toast.description}</p>
+      </div>
+      <button
+        type="button"
+        className="celebration-toast__dismiss"
+        aria-label={`Dismiss ${toast.title}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onDismiss(toast.id);
+        }}
+      >
+        ✕
+      </button>
+    </article>
+  );
+}
+
 export default function App() {
+  const appScopeRef = useRef(null);
   const [files, setFiles] = useState([]);
   const [targetFormat, setTargetFormat] = useState('png');
   const [convertedFiles, setConvertedFiles] = useState([]);
@@ -434,11 +572,32 @@ export default function App() {
   const [preserveFolderStructure, setPreserveFolderStructure] = useState(() => parseBooleanStorage(STORAGE_KEYS.preserveFolderStructure, false));
   const [darkMode, setDarkMode] = useState(() => parseOptionalBooleanStorage(STORAGE_KEYS.darkMode));
   const [reducedMotion, setReducedMotion] = useState(() => parseOptionalBooleanStorage(STORAGE_KEYS.reducedMotion));
+  const [celebrationSoundEnabled, setCelebrationSoundEnabled] = useState(() => parseBooleanStorage(STORAGE_KEYS.celebrationSoundEnabled, true));
   const [editingSession, setEditingSession] = useState(null);
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false));
   const [systemPrefersReducedMotion, setSystemPrefersReducedMotion] = useState(() => (typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false));
   const [imageMetrics, setImageMetrics] = useState({ originalSize: 0, originalWidth: 0, originalHeight: 0 });
+  const [achievementsState, setAchievementsState] = useState(() => loadAchievementsState());
+  const [achievementGalleryOpen, setAchievementGalleryOpen] = useState(true);
+  const [celebrationStats, setCelebrationStats] = useState(() => parseCelebrationStorage());
+  const [xpState, setXpState] = useState(() => loadXpState());
+  const [dailyGoal, setDailyGoal] = useState(() => clampDailyGoal(parseNumberStorage(STORAGE_KEYS.dailyGoal) ?? 10));
+  const [dailyGoalState, setDailyGoalState] = useState(() => {
+    if (typeof window === 'undefined') return createDefaultDailyGoalState();
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEYS.dailyGoalState);
+      return raw ? normalizeDailyGoalState(JSON.parse(raw)) : createDefaultDailyGoalState();
+    } catch (error) {
+      console.warn('[daily-goal] failed to parse stored state, resetting', error);
+      return createDefaultDailyGoalState();
+    }
+  });
+  const [dailyGoalCelebrationKey, setDailyGoalCelebrationKey] = useState(0);
+  const [dailyGoalMilestone, setDailyGoalMilestone] = useState(null);
+  const [celebrationToasts, setCelebrationToasts] = useState([]);
+  const [confettiBursts, setConfettiBursts] = useState([]);
+  const [xpBursts, setXpBursts] = useState([]);
 
   const pausedRef = useRef(paused);
   const abortControllersRef = useRef({});
@@ -446,6 +605,9 @@ export default function App() {
   const filesRef = useRef(files);
   const convertedFilesRef = useRef(convertedFiles);
   const processingRef = useRef(processing);
+  const audioContextRef = useRef(null);
+  const autoToastTimeoutsRef = useRef({});
+  const previousConvertedCountRef = useRef(convertedFiles.length);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -491,12 +653,20 @@ export default function App() {
     processing: processing.length,
   }), [convertedFiles.length, files.length, processing.length]);
 
+  const achievements = useMemo(() => getAchievementsView(achievementsState), [achievementsState]);
+  const unlockedAchievementsCount = useMemo(() => achievements.filter((achievement) => achievement.unlocked).length, [achievements]);
+
   const canConvert = useMemo(
     () => formatValidation.convertibleFiles.length > 0 && !isConverting && !paused,
     [formatValidation.convertibleFiles.length, isConverting, paused],
   );
   const canDownloadZip = useMemo(() => convertedFiles.length > 0 && !isDownloadingZip, [convertedFiles.length, isDownloadingZip]);
   const canClearAll = useMemo(() => (files.length > 0 || convertedFiles.length > 0) && !isConverting, [convertedFiles.length, files.length, isConverting]);
+  const resolvedReducedMotion = reducedMotion === null ? systemPrefersReducedMotion : reducedMotion;
+  const dailyGoalProgress = useMemo(() => {
+    if (!dailyGoal) return 0;
+    return Math.min(100, Math.round((dailyGoalState.count / dailyGoal) * 100));
+  }, [dailyGoal, dailyGoalState.count]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -604,6 +774,144 @@ export default function App() {
   }, [reducedMotion]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.celebrationSoundEnabled, String(celebrationSoundEnabled));
+  }, [celebrationSoundEnabled]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.celebrationStats, JSON.stringify(celebrationStats));
+  }, [celebrationStats]);
+
+  useEffect(() => {
+    persistAchievementsState(achievementsState);
+  }, [achievementsState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handlePageHide = () => {
+      setAchievementsState((current) => resetSessionAchievements(current));
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.dailyGoal, String(dailyGoal));
+  }, [dailyGoal]);
+
+  useEffect(() => {
+    const today = getLocalDateKey();
+    setDailyGoalState((current) => {
+      const normalized = normalizeDailyGoalState(current);
+      if (normalized.completedToday || normalized.count < dailyGoal || normalized.lastActiveDate !== today) {
+        return normalized;
+      }
+
+      const nextStreak = getDayDiff(normalized.lastCompletedDate, today) === 1 ? normalized.streak + 1 : 1;
+      return {
+        ...normalized,
+        completedToday: true,
+        streak: nextStreak,
+        lastCompletedDate: today,
+      };
+    });
+  }, [dailyGoal]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.dailyGoalState, JSON.stringify(dailyGoalState));
+  }, [dailyGoalState]);
+
+  useEffect(() => {
+    const syncDailyGoalDay = () => {
+      const today = getLocalDateKey();
+      setDailyGoalState((current) => {
+        const normalized = normalizeDailyGoalState(current);
+        if (normalized.lastActiveDate === today) return normalized;
+
+        const daysSinceCompletion = getDayDiff(normalized.lastCompletedDate, today);
+        return {
+          ...normalized,
+          count: 0,
+          completedToday: false,
+          streak: daysSinceCompletion === 1 ? normalized.streak : 0,
+          lastActiveDate: today,
+          lastResetAt: new Date().toISOString(),
+        };
+      });
+      setDailyGoalMilestone(null);
+    };
+
+    syncDailyGoalDay();
+    const intervalId = window.setInterval(syncDailyGoalDay, 60000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (isHydratingQueue) return;
+
+    const previousCount = previousConvertedCountRef.current;
+    const nextCount = convertedFiles.length;
+    previousConvertedCountRef.current = nextCount;
+
+    if (nextCount <= previousCount) return;
+
+    const delta = nextCount - previousCount;
+    const today = getLocalDateKey();
+
+    setDailyGoalState((current) => {
+      const normalized = normalizeDailyGoalState(current);
+      const refreshed = normalized.lastActiveDate === today
+        ? normalized
+        : {
+          ...normalized,
+          count: 0,
+          completedToday: false,
+          streak: getDayDiff(normalized.lastCompletedDate, today) === 1 ? normalized.streak : 0,
+          lastActiveDate: today,
+          lastResetAt: new Date().toISOString(),
+        };
+
+      const nextDailyCount = refreshed.count + delta;
+      const reachedGoal = !refreshed.completedToday && nextDailyCount >= dailyGoal;
+      const nextMilestone = reachedGoal
+        ? (getDayDiff(refreshed.lastCompletedDate, today) === 1 ? refreshed.streak + 1 : 1)
+        : refreshed.streak;
+
+      if (reachedGoal) {
+        const milestone = [3, 7, 30].find((value) => value === nextMilestone) || null;
+        setDailyGoalCelebrationKey((value) => value + 1);
+        setDailyGoalMilestone(milestone);
+        celebrate({
+          toast: {
+            variant: 'goal',
+            icon: milestone ? '🔥' : '🎯',
+            title: milestone ? `${milestone}-day streak unlocked` : 'Daily Goal Met',
+            description: milestone
+              ? `You hit today’s conversion target and extended your streak to ${nextMilestone} days.`
+              : `You crushed today’s ${dailyGoal}-image target.`,
+          },
+          confetti: { variant: 'goal', intensity: milestone ? 24 : 18, accent: 'Daily goal met' },
+          xp: { amount: milestone ? 100 : 50, label: milestone ? `${milestone}-day streak` : 'Daily goal met', variant: 'goal' },
+          sound: 'streak',
+        });
+      }
+
+      return {
+        ...refreshed,
+        count: nextDailyCount,
+        completedToday: refreshed.completedToday || reachedGoal,
+        streak: reachedGoal ? nextMilestone : refreshed.streak,
+        lastCompletedDate: reachedGoal ? today : refreshed.lastCompletedDate,
+      };
+    });
+  }, [convertedFiles.length, dailyGoal, isHydratingQueue]);
+
+  useEffect(() => {
     if (typeof document === 'undefined') return;
 
     const resolvedTheme = darkMode === null ? (systemPrefersDark ? 'dark' : 'light') : (darkMode ? 'dark' : 'light');
@@ -617,6 +925,84 @@ export default function App() {
     const shouldReduceMotion = reducedMotion === null ? systemPrefersReducedMotion : reducedMotion;
     document.body.classList.toggle('reduced-motion', shouldReduceMotion);
   }, [reducedMotion, systemPrefersReducedMotion]);
+
+  useEffect(() => {
+    persistXpState(xpState);
+  }, [xpState]);
+
+  useEffect(() => {
+    const today = getTodayStamp();
+    const stats = normalizeCelebrationStats(celebrationStats);
+    const elapsedSinceActive = getDaysBetween(stats.lastActiveDate, today);
+    const elapsedSinceWeeklyStart = getDaysBetween(stats.weeklyWindowStart, today);
+    let nextStats = stats;
+
+    if (elapsedSinceWeeklyStart >= 7 || elapsedSinceWeeklyStart < 0) {
+      if (stats.weeklyConversions >= 10) {
+        celebrate({
+          toast: {
+            variant: 'weekly',
+            icon: '🗓️',
+            title: 'Weekly summary',
+            description: `You wrapped the last 7 days with ${stats.weeklyConversions} conversions.`,
+          },
+          sound: 'streak',
+        });
+      }
+
+      nextStats = {
+        ...nextStats,
+        weeklyConversions: 0,
+        weeklyWindowStart: today,
+      };
+    }
+
+    if (elapsedSinceActive === 1) {
+      const streak = stats.currentStreak + 1;
+      nextStats = {
+        ...nextStats,
+        currentStreak: streak,
+        bestStreak: Math.max(stats.bestStreak, streak),
+        lastActiveDate: today,
+      };
+
+      celebrate({
+        toast: {
+          variant: 'streak',
+          icon: streak >= 3 ? '🔥' : '✨',
+          title: streak >= 3 ? 'Streak Master' : 'Daily streak updated',
+          description: streak >= 3 ? `${streak} days in a row. Momentum unlocked.` : `Day ${streak} in a row. Keep the streak alive.`,
+        },
+        confetti: streak >= 3 ? { variant: 'streak', intensity: 18, accent: `${streak} day streak` } : null,
+        sound: 'streak',
+      });
+    } else if (elapsedSinceActive > 1 || elapsedSinceActive < 0) {
+      nextStats = {
+        ...nextStats,
+        currentStreak: 1,
+        lastActiveDate: today,
+      };
+
+      celebrate({
+        toast: {
+          variant: 'streak',
+          icon: '🌅',
+          title: 'Fresh streak started',
+          description: 'Welcome back. Your streak has been reset and is ready to build again.',
+        },
+      });
+    }
+
+    if (JSON.stringify(nextStats) !== JSON.stringify(stats)) {
+      setCelebrationStats(nextStats);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => () => {
+    Object.values(autoToastTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId));
+    audioContextRef.current?.close?.().catch?.(() => {});
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -834,9 +1220,100 @@ export default function App() {
     preserveFolderStructure,
     darkMode,
     reducedMotion,
+    celebrationSoundEnabled,
     resolvedDarkMode: darkMode === null ? systemPrefersDark : darkMode,
     resolvedReducedMotion: reducedMotion === null ? systemPrefersReducedMotion : reducedMotion,
-  }), [autoClearOnExit, customFilenamePattern, darkMode, estimatedSizeBytes, filenameConvention, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, preserveFolderStructure, preserveMetadata, quality, reducedMotion, resizeHeight, resizeWidth, stripMetadata, systemPrefersDark, systemPrefersReducedMotion, targetFormat]);
+  }), [autoClearOnExit, celebrationSoundEnabled, customFilenamePattern, darkMode, estimatedSizeBytes, filenameConvention, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, preserveFolderStructure, preserveMetadata, quality, reducedMotion, resizeHeight, resizeWidth, stripMetadata, systemPrefersDark, systemPrefersReducedMotion, targetFormat]);
+
+  const dismissCelebrationToast = (toastId) => {
+    if (autoToastTimeoutsRef.current[toastId]) {
+      window.clearTimeout(autoToastTimeoutsRef.current[toastId]);
+      delete autoToastTimeoutsRef.current[toastId];
+    }
+    setCelebrationToasts((current) => current.filter((item) => item.id !== toastId));
+  };
+
+  const spawnToast = (toast) => {
+    const id = toast.id || `${toast.variant || 'celebration'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const nextToast = { ...toast, id };
+
+    setCelebrationToasts((current) => [...current.slice(-2), nextToast]);
+
+    if (typeof window !== 'undefined') {
+      autoToastTimeoutsRef.current[id] = window.setTimeout(() => {
+        dismissCelebrationToast(id);
+      }, toast.duration ?? 4400);
+    }
+  };
+
+  const spawnConfetti = ({ variant = 'achievement', intensity = 16, accent = targetFormat.toUpperCase() } = {}) => {
+    const burstId = `${variant}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const particles = Array.from({ length: intensity }, (_, index) => ({
+      id: `${burstId}-particle-${index}`,
+      left: `${8 + Math.random() * 84}%`,
+      delay: Math.random() * 0.18,
+      duration: 0.9 + Math.random() * 0.9,
+      size: 8 + Math.round(Math.random() * 8),
+      rotation: -140 + Math.random() * 280,
+      x: -140 + Math.random() * 280,
+      y: 150 + Math.random() * 160,
+      color: ['#57e1ff', '#ff8a5b', '#d7ff63', '#ffffff', '#a78bfa'][index % 5],
+      shape: index % 3 === 0 ? 'circle' : index % 3 === 1 ? 'diamond' : 'strip',
+    }));
+
+    setConfettiBursts((current) => [...current, { id: burstId, variant, accent, particles }]);
+    window.setTimeout(() => {
+      setConfettiBursts((current) => current.filter((item) => item.id !== burstId));
+    }, 2600);
+  };
+
+  const spawnXpBurst = ({ amount, label, variant = 'xp' }) => {
+    const id = `${variant}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setXpBursts((current) => [...current, { id, amount, label, variant }]);
+    window.setTimeout(() => {
+      setXpBursts((current) => current.filter((item) => item.id !== id));
+    }, 2200);
+  };
+
+  const playCelebrationSound = (variant = 'achievement') => {
+    if (typeof window === 'undefined' || !celebrationSoundEnabled) return;
+
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      const context = audioContextRef.current || new AudioContextClass();
+      audioContextRef.current = context;
+      const startAt = context.currentTime + 0.01;
+      const master = context.createGain();
+      master.gain.value = variant === 'batch' ? 0.05 : 0.035;
+      master.connect(context.destination);
+
+      const notes = variant === 'batch' ? [392, 523.25, 659.25] : variant === 'streak' ? [349.23, 440, 523.25] : [523.25, 659.25];
+      notes.forEach((frequency, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = variant === 'batch' ? 'triangle' : 'sine';
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, startAt + index * 0.06);
+        gain.gain.exponentialRampToValueAtTime(variant === 'batch' ? 0.18 : 0.12, startAt + index * 0.06 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + index * 0.06 + 0.22);
+        oscillator.connect(gain);
+        gain.connect(master);
+        oscillator.start(startAt + index * 0.06);
+        oscillator.stop(startAt + index * 0.06 + 0.24);
+      });
+    } catch (error) {
+      console.warn('[celebration:sound] playback skipped', error);
+    }
+  };
+
+  const celebrate = ({ toast, confetti, xp, sound }) => {
+    const shouldReduceMotion = reducedMotion === null ? systemPrefersReducedMotion : reducedMotion;
+    if (toast) spawnToast(toast);
+    if (xp) spawnXpBurst(xp);
+    if (!shouldReduceMotion && confetti) spawnConfetti(confetti);
+    if (sound) playCelebrationSound(sound);
+  };
 
   const handleSettingsChange = (key, value) => {
     if (key === 'quality') {
@@ -898,6 +1375,11 @@ export default function App() {
 
     if (key === 'reducedMotion') {
       setReducedMotion(value === 'auto' ? null : Boolean(value));
+      return;
+    }
+
+    if (key === 'celebrationSoundEnabled') {
+      setCelebrationSoundEnabled(Boolean(value));
       return;
     }
 
@@ -1085,6 +1567,10 @@ export default function App() {
     setEditingSession(null);
   };
 
+  const handleDismissAchievementGallery = () => {
+    setAchievementGalleryOpen(false);
+  };
+
   const handleClearAll = () => {
     if (!canClearAll) return;
 
@@ -1106,6 +1592,7 @@ export default function App() {
     setProcessing([]);
     setActiveTransfers([]);
     setProgress(0);
+    setAchievementsState((current) => resetSessionAchievements(current));
   };
 
   const handleClearConverted = () => {
@@ -1131,10 +1618,185 @@ export default function App() {
     ? files.find((file) => getFileKey(file) === editingSession.fileKey) || null
     : null;
 
+  useGSAP(() => {
+    const mm = gsap.matchMedia();
+
+    mm.add(
+      {
+        reduceMotion: reducedMotion === null ? systemPrefersReducedMotion : reducedMotion,
+      },
+      (context) => {
+        const { reduceMotion } = context.conditions;
+        const shell = appScopeRef.current;
+        if (!shell) return undefined;
+
+        const q = gsap.utils.selector(shell);
+        const interactiveSelectors = [
+          '.primary-button',
+          '.secondary-button',
+          '.menu-item',
+          '.menu-toggle',
+          '.theme-toggle',
+          '.image-card',
+          '.panel-close',
+          '.chip-button',
+          '.image-editor-modal__tab',
+          '.radio-option',
+          '.upload-zone',
+        ];
+
+        if (!reduceMotion) {
+          gsap.fromTo(
+            q('.app-top-chrome, .hero, .progress-block, .split-layout__column, .split-layout__rail'),
+            { y: 24, autoAlpha: 0 },
+            {
+              y: 0,
+              autoAlpha: 1,
+              duration: 0.9,
+              ease: 'power3.out',
+              stagger: 0.08,
+              clearProps: 'transform',
+            },
+          );
+
+          gsap.to(q('.background-orb--left'), {
+            yPercent: -8,
+            xPercent: 4,
+            duration: 9,
+            repeat: -1,
+            yoyo: true,
+            ease: 'sine.inOut',
+          });
+
+          gsap.to(q('.background-orb--right'), {
+            yPercent: 8,
+            xPercent: -4,
+            duration: 11,
+            repeat: -1,
+            yoyo: true,
+            ease: 'sine.inOut',
+          });
+
+          q('[data-reveal]').forEach((element) => {
+            gsap.fromTo(
+              element,
+              { y: 36, autoAlpha: 0 },
+              {
+                y: 0,
+                autoAlpha: 1,
+                duration: 0.85,
+                ease: 'power3.out',
+                scrollTrigger: {
+                  trigger: element,
+                  start: 'top 88%',
+                  once: true,
+                },
+              },
+            );
+          });
+
+          q('[data-parallax]').forEach((element) => {
+            gsap.to(element, {
+              yPercent: -10,
+              ease: 'none',
+              scrollTrigger: {
+                trigger: element,
+                start: 'top bottom',
+                end: 'bottom top',
+                scrub: true,
+              },
+            });
+          });
+        }
+
+        const cleanups = [];
+
+        interactiveSelectors.forEach((selector) => {
+          q(selector).forEach((element) => {
+            const hoverIn = () => !reduceMotion && gsap.to(element, { y: -3, scale: 1.01, duration: 0.22, ease: 'power2.out', overwrite: 'auto' });
+            const hoverOut = () => !reduceMotion && gsap.to(element, { y: 0, scale: 1, duration: 0.22, ease: 'power2.out', overwrite: 'auto' });
+            const pressIn = () => !reduceMotion && gsap.to(element, { scale: 0.985, duration: 0.12, ease: 'power2.out', overwrite: 'auto' });
+            const pressOut = () => !reduceMotion && gsap.to(element, { scale: 1, duration: 0.16, ease: 'power2.out', overwrite: 'auto' });
+            const focusIn = () => !reduceMotion && gsap.to(element, { boxShadow: '0 0 0 3px rgba(255, 255, 255, 0.12), 0 0 0 6px rgba(87, 225, 255, 0.22)', duration: 0.18, overwrite: 'auto' });
+            const focusOut = () => !reduceMotion && gsap.to(element, { boxShadow: '', duration: 0.18, overwrite: 'auto' });
+
+            element.addEventListener('mouseenter', hoverIn);
+            element.addEventListener('mouseleave', hoverOut);
+            element.addEventListener('pointerdown', pressIn);
+            element.addEventListener('pointerup', pressOut);
+            element.addEventListener('focus', focusIn);
+            element.addEventListener('blur', focusOut);
+
+            cleanups.push(() => {
+              element.removeEventListener('mouseenter', hoverIn);
+              element.removeEventListener('mouseleave', hoverOut);
+              element.removeEventListener('pointerdown', pressIn);
+              element.removeEventListener('pointerup', pressOut);
+              element.removeEventListener('focus', focusIn);
+              element.removeEventListener('blur', focusOut);
+            });
+          });
+        });
+
+        return () => {
+          cleanups.forEach((cleanup) => cleanup());
+          mm.revert();
+        };
+      },
+    );
+  }, { scope: appScopeRef, dependencies: [reducedMotion, systemPrefersReducedMotion, files.length, convertedFiles.length, activePanel, isKeyboardShortcutsOpen, Boolean(editingFile)] });
+
+  useGSAP(() => {
+    const shouldReduceMotion = reducedMotion === null ? systemPrefersReducedMotion : reducedMotion;
+    const shell = appScopeRef.current;
+    if (!shell) return undefined;
+    const q = gsap.utils.selector(shell);
+
+    if (!shouldReduceMotion) {
+      q('.celebration-confetti__particle').forEach((element) => {
+        const particle = element;
+        gsap.fromTo(
+          particle,
+          { y: -40, x: 0, rotate: 0, autoAlpha: 0 },
+          {
+            y: Number(particle.dataset.y || 180),
+            x: Number(particle.dataset.x || 0),
+            rotate: Number(particle.dataset.rotation || 0),
+            autoAlpha: 1,
+            ease: 'power2.out',
+            duration: Number(particle.dataset.duration || 1.2),
+            delay: Number(particle.dataset.delay || 0),
+          },
+        );
+      });
+
+      q('.xp-burst').forEach((element) => {
+        gsap.fromTo(
+          element,
+          { y: 18, autoAlpha: 0, scale: 0.9 },
+          { y: -48, autoAlpha: 1, scale: 1, duration: 1.1, ease: 'power2.out' },
+        );
+      });
+
+      q('.celebration-toast').forEach((element) => {
+        gsap.fromTo(
+          element,
+          { y: -22, autoAlpha: 0, scale: 0.96 },
+          { y: 0, autoAlpha: 1, scale: 1, duration: 0.42, ease: 'power3.out' },
+        );
+      });
+    }
+
+    return undefined;
+  }, { scope: appScopeRef, dependencies: [confettiBursts, xpBursts, celebrationToasts, reducedMotion, systemPrefersReducedMotion] });
+
   const processQueue = async (runId) => {
     const totalAtStart = filesRef.current.length + convertedFilesRef.current.length;
     let completedCount = convertedFilesRef.current.length;
     let shouldStopAfterError = false;
+    const batchStartedWith = formatValidation.convertibleFiles.length;
+    let processedThisRun = 0;
+    let successfulConversions = 0;
 
     while (!pausedRef.current && !shouldStopAfterError) {
       const nextFile = filesRef.current.find((file) => getFileExtension(file) !== targetFormat);
@@ -1192,7 +1854,67 @@ export default function App() {
         setFiles((current) => current.filter((file) => getFileKey(file) !== fileKey));
 
         completedCount += 1;
+        processedThisRun += 1;
+        successfulConversions += 1;
         setProgress(totalAtStart ? Math.round((completedCount / totalAtStart) * 100) : 0);
+
+        setCelebrationStats((current) => {
+          const updatedStats = normalizeCelebrationStats({
+            ...current,
+            totalConversions: current.totalConversions + 1,
+            weeklyConversions: current.weeklyConversions + 1,
+            lastActiveDate: getTodayStamp(),
+          });
+
+          celebrate({
+            xp: {
+              amount: XP_PER_CONVERSION,
+              label: 'Conversion complete',
+              variant: 'xp',
+            },
+          });
+
+          const achievementUpdate = registerConversionBatch({
+            previousState: achievementsState,
+            batchSize: 1,
+            targetFormat,
+          });
+
+          setAchievementsState(achievementUpdate.state);
+
+          if (achievementUpdate.unlockedAchievements.length) {
+            setAchievementGalleryOpen(true);
+            achievementUpdate.unlockedAchievements.forEach((achievement) => {
+              celebrate({
+                toast: {
+                  variant: 'achievement',
+                  icon: achievement.icon,
+                  title: achievement.name,
+                  description: achievement.criteria,
+                },
+                confetti: { variant: 'achievement', intensity: 22, accent: achievement.name },
+                sound: 'achievement',
+              });
+            });
+          }
+
+          const unlockedIds = achievementUpdate.achievements
+            .filter((achievement) => achievement.unlocked)
+            .map((achievement) => achievement.id);
+
+          const finalStats = normalizeCelebrationStats({
+            ...current,
+            totalConversions: current.totalConversions + 1,
+            weeklyConversions: current.weeklyConversions + 1,
+            lastActiveDate: getTodayStamp(),
+            currentStreak: Math.max(current.currentStreak, achievementUpdate.state.streakDays || current.currentStreak),
+            bestStreak: Math.max(current.bestStreak, achievementUpdate.state.streakDays || current.bestStreak),
+            unlockedAchievements: unlockedIds,
+          });
+
+          return finalStats;
+        });
+
         await wait(ARRIVAL_DURATION_MS);
       } catch (error) {
         if (error?.name !== 'AbortError') {
@@ -1208,6 +1930,30 @@ export default function App() {
       setIsConverting(false);
       setProcessing([]);
       setActiveTransfers([]);
+
+      if (successfulConversions > 0) {
+        setXpState((current) => awardXp(current, { imageCount: successfulConversions }).nextState);
+      }
+
+      if (!shouldStopAfterError && processedThisRun > 0) {
+        celebrate({
+          toast: {
+            variant: batchStartedWith >= 5 ? 'batch' : 'progress',
+            icon: batchStartedWith >= 5 ? '🎉' : '⚡',
+            title: batchStartedWith >= 5 ? 'Batch Master unlocked' : 'Batch complete',
+            description: batchStartedWith >= 5
+              ? `${processedThisRun} images converted in one run. That was a power move.`
+              : `${processedThisRun} image${processedThisRun > 1 ? 's' : ''} converted successfully.`,
+          },
+          confetti: batchStartedWith >= 5 ? { variant: 'batch', intensity: 30, accent: `${processedThisRun} batch` } : { variant: 'progress', intensity: 12, accent: `${processedThisRun} complete` },
+          xp: {
+            amount: processedThisRun * XP_PER_CONVERSION,
+            label: batchStartedWith >= 5 ? `Batch Master · +${processedThisRun * XP_PER_CONVERSION} XP` : `Run complete · +${processedThisRun * XP_PER_CONVERSION} XP`,
+            variant: batchStartedWith >= 5 ? 'batch' : 'xp',
+          },
+          sound: batchStartedWith >= 5 ? 'batch' : 'achievement',
+        });
+      }
     }
   };
 
@@ -1313,9 +2059,40 @@ export default function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" ref={appScopeRef}>
       <div className="background-orb background-orb--left" />
       <div className="background-orb background-orb--right" />
+      <div className="celebration-layer" aria-hidden="true">
+        {confettiBursts.map((burst) => (
+          <div key={burst.id} className={`celebration-confetti celebration-confetti--${burst.variant}`} data-accent={burst.accent}>
+            {burst.particles.map((particle) => (
+              <span
+                key={particle.id}
+                className={`celebration-confetti__particle celebration-confetti__particle--${particle.shape}`}
+                style={{ left: particle.left, width: particle.size, height: particle.size, background: particle.color }}
+                data-delay={particle.delay}
+                data-duration={particle.duration}
+                data-x={particle.x}
+                data-y={particle.y}
+                data-rotation={particle.rotation}
+              />
+            ))}
+          </div>
+        ))}
+        <div className="xp-burst-stack">
+          {xpBursts.map((burst) => (
+            <div key={burst.id} className={`xp-burst xp-burst--${burst.variant}`}>
+              <strong>+{burst.amount}</strong>
+              <span>{burst.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="celebration-toast-stack">
+        {celebrationToasts.map((toast) => (
+          <CelebrationToast key={toast.id} toast={toast} onDismiss={dismissCelebrationToast} />
+        ))}
+      </div>
       <div className="top-right-controls" aria-label="Status and theme controls">
         <OfflineBadge />
         <DarkModeToggle
@@ -1325,7 +2102,7 @@ export default function App() {
         />
       </div>
 
-      <div className="app-top-chrome">
+      <div className="app-top-chrome" data-reveal>
         <MenuBar
           activePanel={activePanel}
           onSelectPanel={handleSelectPanel}
@@ -1351,22 +2128,44 @@ export default function App() {
         />
       </div>
 
-      <main className="app-card app-card--split app-card--with-menu">
-        <section className="hero hero--split">
+      <main className="app-card app-card--split app-card--with-menu" data-reveal>
+        <section className="hero hero--split" data-parallax>
           <div>
             <p className="eyebrow">Image converter</p>
             <h1>Image Format Converter</h1>
             <p className="hero-copy">
               Drag files into the upload zone, choose a target format, then convert and download the finished results.
             </p>
+            <div className="hero-stats" aria-label="Conversion streak and achievements">
+              <span className="pill">🔥 {achievementsState.streakDays}-day streak</span>
+              <span className="pill">🏆 {unlockedAchievementsCount} achievements</span>
+              <span className="pill">⚡ {achievementsState.totalConverted} total conversions</span>
+            </div>
           </div>
+
+          <button
+            type="button"
+            className="achievement-summary-card"
+            onClick={() => setAchievementGalleryOpen((current) => !current)}
+            aria-expanded={achievementGalleryOpen}
+            aria-controls="achievement-gallery"
+          >
+            <div className="achievement-summary-card__topline">
+              <span className="achievement-summary-card__label">Achievement vault</span>
+              <span className="achievement-summary-card__count">{unlockedAchievementsCount}/8 unlocked</span>
+            </div>
+            <strong>Distinct badges, real progress, on-device memory.</strong>
+            <span className="achievement-summary-card__meta">
+              {achievementsState.streakDays}-day streak · {Object.keys(achievementsState.formatCounts || {}).length} formats explored · {achievementsState.sessionConverted} this session
+            </span>
+          </button>
         </section>
 
         <ProgressBar value={progress} visible={isConverting || paused || progress === 100} />
         {errorMessage ? <p className="helper-text helper-text--error">{errorMessage}</p> : null}
 
         <div className="split-layout split-layout--bottom-rail">
-          <section className="split-layout__column split-layout__column--input">
+          <section className="split-layout__column split-layout__column--input" data-reveal>
             <UploadZone
               onFilesAdded={addFiles}
               disabled={false}
@@ -1387,7 +2186,7 @@ export default function App() {
             />
           </section>
 
-          <section className="split-layout__column split-layout__column--output">
+          <section className="split-layout__column split-layout__column--output" data-reveal>
             <ConvertedZone
               convertedFiles={convertedFiles}
               canDownloadZip={canDownloadZip}
@@ -1420,7 +2219,7 @@ export default function App() {
             </div>
           ) : null}
 
-          <aside className="split-layout__rail split-layout__rail--bottom" aria-label="Conversion controls">
+          <aside className="split-layout__rail split-layout__rail--bottom" aria-label="Conversion controls" data-reveal>
             <div className="panel panel--compact action-panel action-panel--split action-panel--rail">
               <div className="action-panel__top">
                 <div className="action-panel__intro">
@@ -1464,6 +2263,69 @@ export default function App() {
             </div>
           </aside>
         </div>
+
+        <XpProgress
+          xpState={xpState}
+          reducedMotion={reducedMotion === null ? systemPrefersReducedMotion : reducedMotion}
+        />
+
+        <section
+          id="achievement-gallery"
+          className={`achievement-gallery panel ${achievementGalleryOpen ? 'achievement-gallery--open' : 'achievement-gallery--closed'}`}
+          data-reveal
+          aria-label="Achievement gallery"
+        >
+          <div className="section-heading achievement-gallery__heading">
+            <div>
+              <p className="eyebrow achievement-gallery__eyebrow">Achievement system</p>
+              <h3>Conversion relics</h3>
+              <p className="section-copy">Each badge has its own visual language, explicit unlock criteria, and live progress.</p>
+            </div>
+            <div className="achievement-gallery__actions">
+              <span className="pill">{ACHIEVEMENT_SYSTEM_DEFINITIONS.length} total badges</span>
+              <button type="button" className="secondary-button secondary-button--small" onClick={handleDismissAchievementGallery}>Hide gallery</button>
+            </div>
+          </div>
+
+          <div className="achievement-grid">
+            {achievements.map((achievement) => (
+              <article key={achievement.id} className={`achievement-card achievement-card--${achievement.theme} ${achievement.unlocked ? 'achievement-card--unlocked' : 'achievement-card--locked'}`}>
+                <div className="achievement-card__header">
+                  <div className="achievement-card__sigil" aria-hidden="true">{achievement.icon}</div>
+                  <span className="achievement-card__status">{achievement.unlocked ? 'Unlocked' : 'Locked'}</span>
+                </div>
+                <div className="achievement-card__body">
+                  <div>
+                    <p className="achievement-card__kicker">{achievement.metric.replace(/([A-Z])/g, ' $1').trim()}</p>
+                    <h4>{achievement.name}</h4>
+                    <p>{achievement.criteria}</p>
+                  </div>
+                  <div className="achievement-card__meter">
+                    <div className="achievement-card__meter-track" aria-hidden="true">
+                      <span style={{ width: `${Math.min(100, (achievement.progress / achievement.target) * 100)}%` }} />
+                    </div>
+                    <div className="achievement-card__meter-meta">
+                      <strong>{achievement.progressLabel}</strong>
+                      <span>{achievement.progressValue} tracked</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <DailyGoalPanel
+          goal={dailyGoal}
+          count={dailyGoalState.count}
+          streak={dailyGoalState.streak}
+          percent={dailyGoalProgress}
+          completedToday={dailyGoalState.completedToday}
+          milestone={dailyGoalMilestone}
+          celebrationKey={dailyGoalCelebrationKey}
+          reducedMotion={resolvedReducedMotion}
+          onGoalChange={(value) => setDailyGoal(clampDailyGoal(value))}
+        />
       </main>
     </div>
   );
