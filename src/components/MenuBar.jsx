@@ -1,5 +1,7 @@
 const MENU_ITEMS = [
   { id: 'settings', name: 'Settings', icon: '⚙️' },
+  { id: 'ai', name: 'AI Lab', icon: '🪄' },
+  { id: 'gamification', name: 'Gamification Lab', icon: '🧪' },
   { id: 'quality', name: 'Quality', icon: '📊' },
   { id: 'size', name: 'Size', icon: '📐' },
   { id: 'queue', name: 'Queue', icon: '📋' },
@@ -33,17 +35,22 @@ export function MenuBar({ activePanel, onSelectPanel, collapsed = false, onToggl
         >
           {MENU_ITEMS.map((item) => {
             const isActive = activePanel === item.id;
+            const isAiLab = item.id === 'ai';
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onSelectPanel(item.id)}
-                className={`menu-item ${isActive ? 'active' : ''}`}
+                className={`menu-item ${isAiLab ? 'menu-item--featured' : ''} ${isActive ? 'active' : ''}`.trim()}
                 aria-pressed={isActive}
-                title={item.name}
+                title={isAiLab ? `${item.name} · On-device image intelligence` : item.name}
               >
                 <span className="menu-item__icon" aria-hidden="true">{item.icon}</span>
-                <span className="menu-item__label">{item.name}</span>
+                <span className="menu-item__copy">
+                  <span className="menu-item__label">{item.name}</span>
+                  {isAiLab ? <span className="menu-item__meta">Lab mode</span> : null}
+                </span>
+                {isAiLab ? <span className="menu-item__signal" aria-hidden="true">◌</span> : null}
               </button>
             );
           })}

@@ -15,6 +15,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import ImageEditor from './components/ImageEditor';
 import UploadZone from './components/UploadZone';
 import XpProgress from './components/XpProgress';
+import { applyAiProcessing, shouldApplyAi } from './utils/aiProcessing';
 import { convertSingle, createZip, triggerDownload } from './lib/api';
 import {
   ACHIEVEMENT_DEFINITIONS as ACHIEVEMENT_SYSTEM_DEFINITIONS,
@@ -53,9 +54,109 @@ const STORAGE_KEYS = {
   dailyGoal: 'image-converter.dailyGoal',
   dailyGoalState: 'image-converter.dailyGoalState',
   queue: 'image-converter.queue',
+  aiState: 'image-converter.aiState',
+  aiSkipMap: 'image-converter.aiSkipMap',
+  powerUps: 'image-converter.powerUps',
+  gamificationTab: 'image-converter.gamificationTab',
+  magicMoments: 'image-converter.magicMoments',
 };
 
 const XP_PER_CONVERSION = 25;
+
+const DEFAULT_AI_STATE = Object.freeze({
+  enabled: true,
+  autoEnhance: true,
+  backgroundRemoval: false,
+  stylePreset: 'none',
+  styleIntensity: 0.72,
+  batchEnabled: true,
+});
+
+const DEFAULT_POWER_UPS = Object.freeze({
+  xpMultiplierEndsAt: null,
+  streakSaveArmed: true,
+  achievementBoost: true,
+});
+
+const DEFAULT_MAGIC_MOMENTS = Object.freeze({
+  history: [],
+});
+
+const loadJsonStorage = (key, fallback) => {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const getLeaderboardSnapshot = ({ weeklyConversions, totalConversions, streakDays }) => {
+  const monthlyScore = totalConversions;
+
+  const weeklyBoard = [
+    { name: 'Nova', xp: 1820, streak: 15, conversions: 42 },
+    { name: 'Pixel', xp: 1640, streak: 11, conversions: 35 },
+    { name: 'You', xp: 420 + (weeklyConversions * 40), streak: Math.max(1, streakDays), conversions: weeklyConversions },
+    { name: 'Alex', xp: 1280, streak: 7, conversions: 24 },
+    { name: 'Quartz', xp: 1080, streak: 6, conversions: 21 },
+    { name: 'Echo', xp: 960, streak: 5, conversions: 18 },
+    { name: 'Vector', xp: 840, streak: 4, conversions: 15 },
+    { name: 'Luma', xp: 760, streak: 3, conversions: 13 },
+    { name: 'Kite', xp: 620, streak: 2, conversions: 11 },
+    { name: 'Mica', xp: 540, streak: 2, conversions: 9 },
+  ].sort((left, right) => right.xp - left.xp).map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  const monthlyBoard = [
+    { name: 'Nova', xp: 6240, streak: 28, conversions: 155 },
+    { name: 'Pixel', xp: 5780, streak: 22, conversions: 141 },
+    { name: 'Alex', xp: 5180, streak: 19, conversions: 126 },
+    { name: 'You', xp: 900 + (monthlyScore * 38), streak: Math.max(1, streakDays), conversions: monthlyScore },
+    { name: 'Quartz', xp: 4320, streak: 17, conversions: 109 },
+    { name: 'Echo', xp: 3980, streak: 14, conversions: 101 },
+    { name: 'Vector', xp: 3520, streak: 11, conversions: 92 },
+    { name: 'Luma', xp: 3140, streak: 9, conversions: 85 },
+    { name: 'Kite', xp: 2760, streak: 8, conversions: 73 },
+    { name: 'Mica', xp: 2380, streak: 6, conversions: 64 },
+  ].sort((left, right) => right.xp - left.xp).map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  const localWeeklyRow = weeklyBoard.find((entry) => entry.name === 'You') || weeklyBoard[0];
+  const localMonthlyRow = monthlyBoard.find((entry) => entry.name === 'You') || monthlyBoard[0];
+
+  return {
+    weekly: {
+      rankLabel: `#${localWeeklyRow.rank}`,
+      scoreLabel: `${weeklyConversions} conversions this week`,
+      board: weeklyBoard,
+    },
+    monthly: {
+      rankLabel: monthlyScore >= 100 ? 'Diamond lane' : monthlyScore >= 50 ? 'Gold lane' : 'Rising',
+      scoreLabel: `${monthlyScore} total converted`,
+      board: monthlyBoard,
+    },
+    friend: {
+      label: streakDays >= 7 ? 'Ahead of Alex' : 'Chasing Alex',
+      delta: streakDays >= 7 ? `+${streakDays - 6} streak lead` : `${Math.max(1, 7 - streakDays)} days to catch up`,
+    },
+    local: {
+      weeklyRank: localWeeklyRow.rank,
+      monthlyRank: localMonthlyRow.rank,
+    },
+  };
+};
+
+const formatRemainingTime = (milliseconds) => {
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return 'Ready';
+  const totalSeconds = Math.ceil(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
+};
 
 const getTodayStamp = () => new Date().toISOString().slice(0, 10);
 
@@ -381,7 +482,10 @@ const persistQueueState = async ({ files, convertedFiles, paused, processing }) 
 const clearPrivacyStorage = async () => {
   if (typeof window === 'undefined') return;
 
-  const keysToRemove = Object.values(STORAGE_KEYS);
+  const keysToRemove = [
+    STORAGE_KEYS.queue,
+    STORAGE_KEYS.activePanel,
+  ];
   keysToRemove.forEach((key) => window.localStorage.removeItem(key));
   window.sessionStorage.clear();
 
@@ -598,6 +702,18 @@ export default function App() {
   const [celebrationToasts, setCelebrationToasts] = useState([]);
   const [confettiBursts, setConfettiBursts] = useState([]);
   const [xpBursts, setXpBursts] = useState([]);
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState('weekly');
+  const [gamificationTab, setGamificationTab] = useState(() => {
+    if (typeof window === 'undefined') return 'leaderboards';
+    return window.localStorage.getItem(STORAGE_KEYS.gamificationTab) || 'leaderboards';
+  });
+  const [magicMoments, setMagicMoments] = useState(() => loadJsonStorage(STORAGE_KEYS.magicMoments, DEFAULT_MAGIC_MOMENTS));
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [aiState, setAiState] = useState(() => loadJsonStorage(STORAGE_KEYS.aiState, DEFAULT_AI_STATE));
+  const [aiHistory, setAiHistory] = useState(() => [loadJsonStorage(STORAGE_KEYS.aiState, DEFAULT_AI_STATE)]);
+  const [aiHistoryIndex, setAiHistoryIndex] = useState(0);
+  const [aiSkipMap, setAiSkipMap] = useState(() => loadJsonStorage(STORAGE_KEYS.aiSkipMap, {}));
+  const [powerUps, setPowerUps] = useState(() => loadJsonStorage(STORAGE_KEYS.powerUps, DEFAULT_POWER_UPS));
 
   const pausedRef = useRef(paused);
   const abortControllersRef = useRef({});
@@ -977,27 +1093,45 @@ export default function App() {
         sound: 'streak',
       });
     } else if (elapsedSinceActive > 1 || elapsedSinceActive < 0) {
-      nextStats = {
-        ...nextStats,
-        currentStreak: 1,
-        lastActiveDate: today,
-      };
+      if (powerUps.streakSaveArmed && elapsedSinceActive === 2) {
+        nextStats = {
+          ...nextStats,
+          lastActiveDate: today,
+        };
+        setPowerUps((current) => ({ ...current, streakSaveArmed: false }));
 
-      celebrate({
-        toast: {
-          variant: 'streak',
-          icon: '🌅',
-          title: 'Fresh streak started',
-          description: 'Welcome back. Your streak has been reset and is ready to build again.',
-        },
-      });
+        celebrate({
+          toast: {
+            variant: 'streak',
+            icon: '🛡️',
+            title: 'Streak save consumed',
+            description: 'Your shield protected a missed day and kept momentum alive.',
+          },
+          sound: 'streak',
+        });
+      } else {
+        nextStats = {
+          ...nextStats,
+          currentStreak: 1,
+          lastActiveDate: today,
+        };
+
+        celebrate({
+          toast: {
+            variant: 'streak',
+            icon: '🌅',
+            title: 'Fresh streak started',
+            description: 'Welcome back. Your streak has been reset and is ready to build again.',
+          },
+        });
+      }
     }
 
     if (JSON.stringify(nextStats) !== JSON.stringify(stats)) {
       setCelebrationStats(nextStats);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [powerUps.streakSaveArmed]);
 
   useEffect(() => () => {
     Object.values(autoToastTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId));
@@ -1013,7 +1147,7 @@ export default function App() {
       return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
     };
 
-    const panelShortcuts = ['settings', 'quality', 'size', 'queue', 'privacy', 'filename', 'progress', 'advanced'];
+    const panelShortcuts = ['settings', 'ai', 'gamification', 'quality', 'size', 'queue', 'privacy', 'filename', 'progress'];
 
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
@@ -1042,6 +1176,13 @@ export default function App() {
         return;
       }
 
+      if ((event.metaKey || event.ctrlKey) && lowerKey === 'l') {
+        event.preventDefault();
+        setActivePanel((current) => (current === 'gamification' ? null : 'gamification'));
+        setMenuCollapsed(false);
+        return;
+      }
+
       if (editableTarget) return;
 
       if (event.key === '?' || (event.shiftKey && event.key === '/')) {
@@ -1050,7 +1191,7 @@ export default function App() {
         return;
       }
 
-      if (/^[1-8]$/.test(event.key)) {
+      if (/^[1-9]$/.test(event.key)) {
         event.preventDefault();
         const panelId = panelShortcuts[Number(event.key) - 1];
         setActivePanel((current) => (current === panelId ? null : panelId));
@@ -1224,6 +1365,150 @@ export default function App() {
     resolvedDarkMode: darkMode === null ? systemPrefersDark : darkMode,
     resolvedReducedMotion: reducedMotion === null ? systemPrefersReducedMotion : reducedMotion,
   }), [autoClearOnExit, celebrationSoundEnabled, customFilenamePattern, darkMode, estimatedSizeBytes, filenameConvention, imageMetrics.originalHeight, imageMetrics.originalSize, imageMetrics.originalWidth, keepAspectRatio, preserveFolderStructure, preserveMetadata, quality, reducedMotion, resizeHeight, resizeWidth, stripMetadata, systemPrefersDark, systemPrefersReducedMotion, targetFormat]);
+
+  const leaderboard = useMemo(() => getLeaderboardSnapshot({
+    weeklyConversions: celebrationStats.weeklyConversions,
+    totalConversions: achievementsState.totalConverted,
+    streakDays: achievementsState.streakDays,
+  }), [achievementsState.streakDays, achievementsState.totalConverted, celebrationStats.weeklyConversions]);
+  const activeLeaderboard = leaderboardPeriod === 'monthly' ? leaderboard.monthly : leaderboard.weekly;
+  const xpMultiplierRemainingMs = powerUps.xpMultiplierEndsAt ? new Date(powerUps.xpMultiplierEndsAt).getTime() - nowTick : 0;
+  const xpMultiplierActive = xpMultiplierRemainingMs > 0;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const intervalId = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.aiState, JSON.stringify(aiState));
+  }, [aiState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.aiSkipMap, JSON.stringify(aiSkipMap));
+  }, [aiSkipMap]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.powerUps, JSON.stringify(powerUps));
+  }, [powerUps]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.gamificationTab, gamificationTab);
+  }, [gamificationTab]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEYS.magicMoments, JSON.stringify(magicMoments));
+  }, [magicMoments]);
+
+  const pushAiHistory = (nextState) => {
+    setAiState(nextState);
+    setAiHistory((current) => [...current.slice(0, aiHistoryIndex + 1), nextState]);
+    setAiHistoryIndex((current) => current + 1);
+  };
+
+  const handleAiChange = (key, value) => {
+    pushAiHistory({ ...aiState, [key]: value });
+  };
+
+  const handleAiUndo = () => {
+    if (aiHistoryIndex <= 0) return;
+    const nextIndex = aiHistoryIndex - 1;
+    setAiHistoryIndex(nextIndex);
+    setAiState(aiHistory[nextIndex]);
+  };
+
+  const handleAiRedo = () => {
+    if (aiHistoryIndex >= aiHistory.length - 1) return;
+    const nextIndex = aiHistoryIndex + 1;
+    setAiHistoryIndex(nextIndex);
+    setAiState(aiHistory[nextIndex]);
+  };
+
+  const handleToggleAiSkip = (fileKey) => {
+    setAiSkipMap((current) => ({ ...current, [fileKey]: !current[fileKey] }));
+  };
+
+  const handleReplayMagicMoment = (moment) => {
+    if (!moment) return;
+    celebrate({
+      toast: {
+        variant: 'batch',
+        icon: moment.milestone >= 100 ? '👑' : moment.milestone >= 50 ? '🌌' : '🌠',
+        title: `${moment.milestone}th Conversion!`,
+        description: `Replaying ${moment.label.toLowerCase()} from the local lab archive.`,
+      },
+      confetti: { variant: 'batch', intensity: moment.milestone >= 100 ? 44 : moment.milestone >= 50 ? 38 : 30, accent: `${moment.milestone}th conversion` },
+      sound: 'batch',
+    });
+  };
+
+  const handleShareAchievement = async () => {
+    const text = `IFC AI Lab flex — ${achievementsState.totalConverted} conversions, ${achievementsState.streakDays}-day streak, ${leaderboard.weekly.scoreLabel}.`;
+
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+      celebrate({
+        toast: { variant: 'achievement', icon: '📣', title: 'Share card copied', description: text },
+        sound: 'achievement',
+      });
+    } catch {
+      celebrate({
+        toast: { variant: 'achievement', icon: '📣', title: 'Share ready', description: text },
+      });
+    }
+  };
+
+  const handleActivateXpMultiplier = () => {
+    if (xpMultiplierActive) return;
+    setPowerUps((current) => ({ ...current, xpMultiplierEndsAt: new Date(Date.now() + 3600000).toISOString() }));
+    celebrate({
+      toast: {
+        variant: 'goal',
+        icon: '⚡',
+        title: '2x XP power-up armed',
+        description: 'You have one hour of boosted XP on every conversion run.',
+      },
+      confetti: { variant: 'goal', intensity: 20, accent: '2x XP activated' },
+      xp: { amount: 75, label: '2x XP boost', variant: 'goal' },
+      sound: 'achievement',
+    });
+  };
+
+  const handleToggleAchievementBoost = () => {
+    setPowerUps((current) => {
+      const nextEnabled = !current.achievementBoost;
+      celebrate({
+        toast: {
+          variant: 'achievement',
+          icon: nextEnabled ? '✨' : '🌙',
+          title: nextEnabled ? 'Achievement boost online' : 'Achievement boost muted',
+          description: nextEnabled ? 'Big unlock celebrations are back in full neon.' : 'Celebrations will stay subtle until you re-arm them.',
+        },
+      });
+      return { ...current, achievementBoost: nextEnabled };
+    });
+  };
+
+  const handleArmStreakSave = () => {
+    if (powerUps.streakSaveArmed) return;
+    setPowerUps((current) => ({ ...current, streakSaveArmed: true }));
+    celebrate({
+      toast: {
+        variant: 'streak',
+        icon: '🛡️',
+        title: 'Streak shield recharged',
+        description: 'One missed day can now be absorbed without breaking momentum.',
+      },
+      confetti: { variant: 'streak', intensity: 16, accent: 'Streak shield ready' },
+      sound: 'streak',
+    });
+  };
 
   const dismissCelebrationToast = (toastId) => {
     if (autoToastTimeoutsRef.current[toastId]) {
@@ -1803,6 +2088,13 @@ export default function App() {
       if (!nextFile) break;
 
       const fileKey = getFileKey(nextFile);
+      const skipAiProcessing = Boolean(aiSkipMap[fileKey]);
+      const applyAiForFile = Boolean(
+        aiState.enabled
+        && aiState.batchEnabled
+        && !skipAiProcessing
+        && (aiState.autoEnhance || aiState.backgroundRemoval || aiState.stylePreset !== 'none')
+      );
       const stackIndex = processingRef.current.length % MAX_VISIBLE_SWIPE_STACK;
       const controller = new AbortController();
       abortControllersRef.current[fileKey] = controller;
@@ -1812,7 +2104,7 @@ export default function App() {
       setConvertingProgress((current) => ({ ...current, [fileKey]: 18 }));
       setActiveTransfers((current) => [...current, {
         id: fileKey,
-        label: `${getFileExtension(nextFile).toUpperCase()}→${targetFormat.toUpperCase()}`,
+        label: `${getFileExtension(nextFile).toUpperCase()}→${targetFormat.toUpperCase()}${applyAiForFile ? ' · AI' : ''}`,
         file: nextFile,
         stackIndex,
       }]);
@@ -1827,8 +2119,12 @@ export default function App() {
         setConvertingMap((current) => ({ ...current, [fileKey]: { phase: 'transitioning' } }));
         setConvertingProgress((current) => ({ ...current, [fileKey]: 62 }));
 
+        const aiReadyFile = (aiState.batchEnabled || filesRef.current.length <= 1) && !aiSkipMap[fileKey] && shouldApplyAi(aiState)
+          ? await applyAiProcessing(nextFile, aiState)
+          : nextFile;
+
         const converted = await convertSingle({
-          file: nextFile,
+          file: aiReadyFile,
           targetFormat,
           quality,
           width: resizeWidth != null ? clampDimension(resizeWidth, nextFile.originalWidth || imageMetrics.originalWidth || 4000) : null,
@@ -1841,6 +2137,13 @@ export default function App() {
           preserveFolderStructure,
           rotation: normalizeRotation(nextFile.rotation),
           crop: normalizeCrop(nextFile.crop),
+          aiEnabled: applyAiForFile,
+          autoEnhance: aiState.autoEnhance,
+          removeBackground: aiState.backgroundRemoval,
+          stylePreset: aiState.stylePreset,
+          styleIntensity: aiState.styleIntensity,
+          aiBatchEnabled: aiState.batchEnabled,
+          skipAiProcessing,
           signal: controller.signal,
         });
 
@@ -1902,6 +2205,35 @@ export default function App() {
             .filter((achievement) => achievement.unlocked)
             .map((achievement) => achievement.id);
 
+          if ([10, 50, 100].includes(current.totalConversions + 1)) {
+            const milestoneValue = current.totalConversions + 1;
+            const milestoneLabel = milestoneValue === 10 ? '10th Conversion!' : milestoneValue === 50 ? '50th Conversion!' : '100th Conversion!';
+            setMagicMoments((existing) => ({
+              ...existing,
+              history: [{
+                id: `milestone-${milestoneValue}-${Date.now()}`,
+                milestone: milestoneValue,
+                label: milestoneValue === 100 ? 'Centurion ignition' : milestoneValue === 50 ? 'Half-century burst' : 'First milestone spark',
+                timestamp: new Date().toISOString(),
+                timestampLabel: new Date().toLocaleString(),
+              }, ...(existing.history || [])].slice(0, 12),
+            }));
+            celebrate({
+              toast: {
+                variant: 'batch',
+                icon: milestoneValue === 100 ? '👑' : milestoneValue === 50 ? '🌌' : '🌠',
+                title: milestoneLabel,
+                description: milestoneValue === 100
+                  ? 'Triple-digit magic unlocked. The local lab is glowing.'
+                  : milestoneValue === 50
+                    ? 'Half-century hit. Particle burst engaged.'
+                    : 'First major milestone reached. Keep the streak hot.',
+              },
+              confetti: { variant: 'batch', intensity: milestoneValue === 100 ? 44 : milestoneValue === 50 ? 38 : 30, accent: milestoneLabel },
+              sound: 'batch',
+            });
+          }
+
           const finalStats = normalizeCelebrationStats({
             ...current,
             totalConversions: current.totalConversions + 1,
@@ -1932,7 +2264,9 @@ export default function App() {
       setActiveTransfers([]);
 
       if (successfulConversions > 0) {
-        setXpState((current) => awardXp(current, { imageCount: successfulConversions }).nextState);
+        const multiplierActive = powerUps.xpMultiplierEndsAt && new Date(powerUps.xpMultiplierEndsAt).getTime() > Date.now();
+        const awardedCount = multiplierActive ? successfulConversions * 2 : successfulConversions;
+        setXpState((current) => awardXp(current, { imageCount: awardedCount }).nextState);
       }
 
       if (!shouldStopAfterError && processedThisRun > 0) {
@@ -2115,6 +2449,35 @@ export default function App() {
           settings={settingsState}
           onChange={handleSettingsChange}
           onOpenKeyboardShortcuts={() => setIsKeyboardShortcutsOpen(true)}
+          aiState={aiState}
+          onAiChange={handleAiChange}
+          onAiUndo={handleAiUndo}
+          onAiRedo={handleAiRedo}
+          canAiUndo={aiHistoryIndex > 0}
+          canAiRedo={aiHistoryIndex < aiHistory.length - 1}
+          files={files}
+          aiSkipMap={aiSkipMap}
+          onToggleAiSkip={handleToggleAiSkip}
+          leaderboard={leaderboard}
+          onShareAchievement={handleShareAchievement}
+          gamificationLab={{
+            activeTab: gamificationTab,
+            onTabChange: setGamificationTab,
+            leaderboardPeriod,
+            onLeaderboardPeriodChange: setLeaderboardPeriod,
+            leaderboard,
+            magicMoments: magicMoments.history || [],
+            celebrationSoundEnabled,
+            onCelebrationSoundChange: (value) => handleSettingsChange('celebrationSoundEnabled', value),
+            onReplayMoment: handleReplayMagicMoment,
+            xpMultiplierActive,
+            xpMultiplierRemainingLabel: formatRemainingTime(xpMultiplierRemainingMs),
+            streakSaveArmed: powerUps.streakSaveArmed,
+            achievementBoost: powerUps.achievementBoost,
+            onActivateXpMultiplier: handleActivateXpMultiplier,
+            onArmStreakSave: handleArmStreakSave,
+            onToggleAchievementBoost: handleToggleAchievementBoost,
+          }}
         />
         <KeyboardShortcutsModal
           isOpen={isKeyboardShortcutsOpen}
