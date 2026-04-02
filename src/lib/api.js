@@ -49,6 +49,13 @@ export const convertSingle = async ({
   preserveFolderStructure,
   rotation,
   crop,
+  aiEnabled,
+  autoEnhance,
+  removeBackground,
+  stylePreset,
+  styleIntensity,
+  aiBatchEnabled,
+  skipAiProcessing,
   signal,
 }) => {
   if (USE_MOCK_API) {
@@ -58,7 +65,7 @@ export const convertSingle = async ({
       originalName: file.name,
       convertedName: file.name.replace(/\.[^.]+$/, '') + `.${targetFormat}`,
       relativePath: file.relativePath || file.webkitRelativePath || '',
-      blobBase64: btoa(`mock-binary-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}-${stripMetadata}-${preserveMetadata}-${filenameConvention}-${customFilenamePattern}-${preserveFolderStructure}-${rotation ?? 0}-${JSON.stringify(crop || {})}`),
+      blobBase64: btoa(`mock-binary-${file.name}-${targetFormat}-${quality ?? 'default'}-${width ?? 'orig'}-${height ?? 'orig'}-${keepAspectRatio}-${stripMetadata}-${preserveMetadata}-${filenameConvention}-${customFilenamePattern}-${preserveFolderStructure}-${rotation ?? 0}-${JSON.stringify(crop || {})}-${aiEnabled}-${autoEnhance}-${removeBackground}-${stylePreset}-${styleIntensity}-${aiBatchEnabled}-${skipAiProcessing}`),
       mimeType: `image/${targetFormat === 'jpg' ? 'jpeg' : targetFormat}`,
       size: estimateMockSize({ file, targetFormat, quality, width, height }),
     };
@@ -79,6 +86,14 @@ export const convertSingle = async ({
   formData.append('relativePath', file.relativePath || file.webkitRelativePath || '');
   formData.append('rotation', String(Number(rotation) || 0));
   formData.append('crop', JSON.stringify(crop || { top: 0, right: 0, bottom: 0, left: 0 }));
+  formData.append('autoEnhance', String(Boolean(aiEnabled && autoEnhance)));
+  formData.append('removeBackground', String(Boolean(aiEnabled && removeBackground)));
+  formData.append('styleTransferEnabled', String(Boolean(aiEnabled && stylePreset && stylePreset !== 'none')));
+  formData.append('stylePreset', stylePreset || 'vintage');
+  formData.append('styleIntensity', String(Math.round((Number(styleIntensity) || 0) * 100)));
+  formData.append('aiBatchEnabled', String(Boolean(aiBatchEnabled)));
+  formData.append('skipAiProcessing', String(Boolean(skipAiProcessing)));
+  formData.append('enhanceQuality', 'true');
 
   const response = await fetch('/api/convert', {
     method: 'POST',
@@ -119,6 +134,12 @@ export const convertBatch = async ({
   filenameConvention,
   customFilenamePattern,
   preserveFolderStructure,
+  aiEnabled,
+  autoEnhance,
+  removeBackground,
+  stylePreset,
+  styleIntensity,
+  aiBatchEnabled,
   signal,
 }) => {
   if (USE_MOCK_API) {
@@ -148,6 +169,13 @@ export const convertBatch = async ({
   formData.append('filenameConvention', filenameConvention || 'original');
   formData.append('customFilenamePattern', customFilenamePattern || '');
   formData.append('preserveFolderStructure', String(Boolean(preserveFolderStructure)));
+  formData.append('autoEnhance', String(Boolean(aiEnabled && autoEnhance)));
+  formData.append('removeBackground', String(Boolean(aiEnabled && removeBackground)));
+  formData.append('styleTransferEnabled', String(Boolean(aiEnabled && stylePreset && stylePreset !== 'none')));
+  formData.append('stylePreset', stylePreset || 'vintage');
+  formData.append('styleIntensity', String(Math.round((Number(styleIntensity) || 0) * 100)));
+  formData.append('aiBatchEnabled', String(Boolean(aiBatchEnabled)));
+  formData.append('enhanceQuality', 'true');
 
   const response = await fetch('/api/convert/batch', {
     method: 'POST',

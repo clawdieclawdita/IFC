@@ -2460,24 +2460,19 @@ export default function App() {
           onToggleAiSkip={handleToggleAiSkip}
           leaderboard={leaderboard}
           onShareAchievement={handleShareAchievement}
-          gamificationLab={{
-            activeTab: gamificationTab,
-            onTabChange: setGamificationTab,
-            leaderboardPeriod,
-            onLeaderboardPeriodChange: setLeaderboardPeriod,
-            leaderboard,
-            magicMoments: magicMoments.history || [],
-            celebrationSoundEnabled,
-            onCelebrationSoundChange: (value) => handleSettingsChange('celebrationSoundEnabled', value),
-            onReplayMoment: handleReplayMagicMoment,
-            xpMultiplierActive,
-            xpMultiplierRemainingLabel: formatRemainingTime(xpMultiplierRemainingMs),
-            streakSaveArmed: powerUps.streakSaveArmed,
-            achievementBoost: powerUps.achievementBoost,
-            onActivateXpMultiplier: handleActivateXpMultiplier,
-            onArmStreakSave: handleArmStreakSave,
-            onToggleAchievementBoost: handleToggleAchievementBoost,
-          }}
+          leaderboardPeriod={leaderboardPeriod}
+          onLeaderboardPeriodChange={setLeaderboardPeriod}
+          moments={magicMoments}
+          celebrationSoundEnabled={celebrationSoundEnabled}
+          onToggleSound={(enabled) => handleSettingsChange('celebrationSoundEnabled', enabled)}
+          onReplayMoment={handleReplayMagicMoment}
+          xpMultiplierActive={xpMultiplierRemainingMs > 0}
+          xpMultiplierRemainingLabel={xpMultiplierRemainingMs > 0 ? `${Math.ceil(xpMultiplierRemainingMs / 60000)}m remaining` : ''}
+          streakSaveArmed={powerUps.streakSaveArmed}
+          achievementBoost={powerUps.achievementBoost || false}
+          onActivateXpMultiplier={handleActivateXpMultiplier}
+          onArmStreakSave={handleArmStreakSave}
+          onToggleAchievementBoost={(boost) => setPowerUps((current) => ({ ...current, achievementBoost: boost }))}
         />
         <KeyboardShortcutsModal
           isOpen={isKeyboardShortcutsOpen}

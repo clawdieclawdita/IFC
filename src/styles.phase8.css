@@ -1,0 +1,475 @@
+.ai-lab-panel,
+.ai-orbit-grid,
+.ai-style-grid,
+.ai-batch-grid,
+.power-up-grid,
+.leaderboard-grid,
+.power-up-readout-grid,
+.magic-moment-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.ai-lab-panel__hero,
+.ai-preview-stage,
+.ai-batch-row,
+.ai-orbit-card__topline,
+.mini-board,
+.gamification-lab,
+.gamification-lab__hero,
+.gamification-section-heading,
+.gamification-tab-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-lab-panel__hero,
+.ai-preview-stage,
+.ai-batch-grid,
+.magic-moment-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.ai-lab-panel {
+  gap: 18px;
+}
+
+.ai-lab-panel__hero {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.ai-preview-stage {
+  grid-template-columns: minmax(280px, 0.92fr) minmax(360px, 1.08fr);
+  align-items: stretch;
+}
+
+.ai-batch-grid {
+  grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.92fr);
+  align-items: start;
+}
+
+.ai-orbit-grid,
+.ai-style-grid,
+.power-up-grid,
+.leaderboard-grid,
+.power-up-readout-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.ai-orbit-card,
+.ai-preview-stage,
+.ai-style-lab,
+.ai-batch-card,
+.power-up-card,
+.leaderboard-card,
+.gamification-lab__hero,
+.gamification-tab-shell,
+.magic-moment-stage,
+.magic-moment-log,
+.gamification-tabs {
+  border: 1px solid rgba(87, 225, 255, 0.18);
+  border-radius: 20px;
+  background: linear-gradient(160deg, rgba(11, 22, 38, 0.9), rgba(25, 16, 47, 0.78));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 24px 50px rgba(2,6,23,0.28);
+}
+
+.ai-orbit-card,
+.ai-preview-stage,
+.ai-style-lab,
+.ai-batch-card,
+.power-up-card,
+.leaderboard-card,
+.gamification-lab__hero,
+.gamification-tab-shell,
+.magic-moment-stage,
+.magic-moment-log,
+.gamification-tabs {
+  padding: 16px;
+}
+
+.ai-orbit-card__topline,
+.leaderboard-card,
+.power-up-card,
+.ai-batch-row,
+.mini-board > div,
+.gamification-lab__status {
+  color: #dbeafe;
+}
+
+.ai-orbit-card__topline span,
+.leaderboard-card span,
+.power-up-card span,
+.mini-board span,
+.gamification-lab__status span,
+.magic-moment-stage__core span {
+  color: #7dd3fc;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ai-preview-stage__copy {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.ai-preview-stage__copy h4 {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.ai-preview-stage__frame {
+  min-height: 240px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: radial-gradient(circle at top, rgba(87,225,255,0.16), transparent 50%), rgba(5,10,20,0.88);
+  border: 1px solid rgba(148,163,184,0.14);
+}
+
+.ai-preview-stage__frame img,
+.ai-preview-stage__empty {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  min-height: 240px;
+}
+
+.ai-preview-stage__empty {
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+}
+
+@media (max-width: 900px) {
+  .ai-lab-panel__hero,
+  .ai-preview-stage,
+  .ai-batch-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.segmented-toggle {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(148,163,184,0.08);
+}
+
+.segmented-toggle button,
+.style-chip,
+.power-up-card,
+.gamification-tabs__button,
+.magic-moment-log__item {
+  border: 0;
+  cursor: pointer;
+}
+
+.segmented-toggle button {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: transparent;
+  color: #cbd5e1;
+}
+
+.segmented-toggle .is-active,
+.style-chip--active {
+  background: linear-gradient(135deg, rgba(87,225,255,0.2), rgba(167,139,250,0.24));
+  color: white;
+}
+
+.style-chip {
+  text-align: left;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(15,23,42,0.7);
+  color: #e2e8f0;
+  border: 1px solid rgba(148,163,184,0.12);
+}
+
+.style-chip small,
+.leaderboard-card small,
+.mini-board small,
+.power-up-card span,
+.ai-batch-row span,
+.gamification-lab__status strong,
+.magic-moment-stage__core small {
+  display: block;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.ai-intensity-slider input {
+  width: 100%;
+}
+
+.ai-batch-row {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid rgba(148,163,184,0.08);
+}
+
+.ai-batch-row:first-child { border-top: 0; }
+.ai-batch-row.is-skipped strong { opacity: 0.6; }
+.ai-batch-row--empty { color: #94a3b8; }
+
+.mini-board {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.power-up-card,
+.leaderboard-card,
+.gamification-tabs__button,
+.magic-moment-log__item {
+  text-align: left;
+}
+
+.power-up-card strong,
+.leaderboard-card strong,
+.mini-board strong,
+.gamification-lab__status strong,
+.magic-moment-stage__core strong {
+  display: block;
+  font-size: 1.1rem;
+  margin-top: 8px;
+}
+
+.power-up-card small {
+  display: block;
+  margin-top: 8px;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.power-up-card--active {
+  border-color: rgba(215, 255, 99, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 24px 50px rgba(2,6,23,0.28), 0 0 0 1px rgba(215, 255, 99, 0.16);
+}
+
+.power-up-status-pill {
+  align-self: start;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(87, 225, 255, 0.18);
+  background: rgba(15, 23, 42, 0.72);
+  color: #d7ff63;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.leaderboard-toggle {
+  width: fit-content;
+}
+
+.leaderboard-table {
+  display: grid;
+  gap: 10px;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.leaderboard-row--you {
+  border-color: rgba(87, 225, 255, 0.3);
+  background: linear-gradient(135deg, rgba(87, 225, 255, 0.12), rgba(255, 138, 91, 0.12));
+}
+
+.leaderboard-row__rank,
+.leaderboard-row__xp,
+.leaderboard-row__stats span {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.leaderboard-row__identity {
+  min-width: 0;
+}
+
+.leaderboard-row__identity strong,
+.leaderboard-row__identity span,
+.leaderboard-row__stats small {
+  display: block;
+}
+
+.leaderboard-row__identity span,
+.leaderboard-row__stats small {
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.gamification-lab {
+  gap: 16px;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.gamification-lab__hero {
+  grid-template-columns: minmax(0, 1fr) auto;
+  background:
+    radial-gradient(circle at top left, rgba(87, 225, 255, 0.18), transparent 36%),
+    radial-gradient(circle at bottom right, rgba(255, 138, 91, 0.14), transparent 38%),
+    linear-gradient(160deg, rgba(8, 18, 34, 0.96), rgba(29, 19, 53, 0.86));
+}
+
+.gamification-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex-direction: column;
+  width: 160px;
+  background: rgba(6, 11, 22, 0.82);
+}
+
+.gamification-tabs__button {
+  flex: 1 1 160px;
+  min-height: 54px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  color: #dbeafe;
+  background: rgba(10, 17, 31, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.gamification-tabs__button.is-active {
+  border-color: rgba(87, 225, 255, 0.34);
+  background: linear-gradient(135deg, rgba(87, 225, 255, 0.16), rgba(167, 139, 250, 0.22));
+  transform: translateY(-1px);
+}
+
+.gamification-tab-shell {
+  align-content: start;
+  background:
+    linear-gradient(180deg, rgba(7, 12, 23, 0.96), rgba(10, 16, 29, 0.92)),
+    repeating-linear-gradient(90deg, rgba(87,225,255,0.04) 0 1px, transparent 1px 36px);
+}
+
+.gamification-section-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.magic-moment-stage {
+  position: relative;
+  min-height: 280px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(87,225,255,0.14), transparent 36%),
+    radial-gradient(circle at center, rgba(167,139,250,0.14), transparent 50%),
+    rgba(7, 12, 22, 0.92);
+}
+
+.magic-moment-stage__ring {
+  position: absolute;
+  inset: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(87, 225, 255, 0.28);
+  box-shadow: 0 0 0 12px rgba(87, 225, 255, 0.04), 0 0 60px rgba(87, 225, 255, 0.14) inset;
+}
+
+.magic-moment-stage__core {
+  position: relative;
+  z-index: 2;
+  max-width: 320px;
+  text-align: center;
+}
+
+.magic-moment-stage__particle {
+  position: absolute;
+  left: calc(50% - 4px);
+  top: calc(50% - 4px);
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #57e1ff, #d7ff63);
+  box-shadow: 0 0 14px rgba(87, 225, 255, 0.42);
+}
+
+.magic-moment-log__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.magic-moment-log__list {
+  display: grid;
+  gap: 10px;
+}
+
+.magic-moment-log__item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+  color: #e5eef8;
+  background: rgba(15, 23, 42, 0.52);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.magic-moment-log__item span,
+.magic-moment-log__item small,
+.magic-moment-log__empty {
+  color: #94a3b8;
+}
+
+.magic-moment-log__empty {
+  padding: 18px 0;
+}
+
+.gamification-toggle {
+  align-self: start;
+}
+
+@media (max-width: 900px) {
+  .gamification-lab {
+    grid-template-columns: 1fr;
+  }
+
+  .gamification-tabs {
+    flex-direction: row;
+    width: 100%;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 760px) {
+  .gamification-lab__hero,
+  .gamification-section-heading,
+  .magic-moment-log__item,
+  .leaderboard-row {
+    grid-template-columns: 1fr;
+  }
+
+  .gamification-tabs__button {
+    flex-basis: 100%;
+  }
+
+  .mini-board {
+    grid-template-columns: 1fr;
+  }
+}

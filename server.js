@@ -37,6 +37,8 @@ const OUTPUT_EXTENSION_MAP = {
   svg: 'svg'
 };
 
+const AI_STYLE_PRESETS = new Set(['none', 'vintage', 'blackwhite', 'cinematic', 'artistic']);
+
 function log(...args) {
   console.log(new Date().toISOString(), ...args);
 }
@@ -377,6 +379,233 @@ function parseConvertOptions(body = {}, targetFormat) {
   };
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function parseAiOptions(body = {}) {
+  const autoEnhance = parseOptionalBoolean(body.autoEnhance, false);
+  const removeBackground = parseOptionalBoolean(body.removeBackground, false);
+  const aiBatchEnabled = parseOptionalBoolean(body.aiBatchEnabled, false);
+  const skipAiProcessing = parseOptionalBoolean(body.skipAiProcessing, false);
+  const styleTransferEnabled = parseOptionalBoolean(body.styleTransferEnabled, false);
+  const enhanceQuality = parseOptionalBoolean(body.enhanceQuality, true);
+  const preview = parseOptionalBoolean(body.preview, false);
+  const stylePreset = String(body.stylePreset || 'none').trim().toLowerCase();
+  const styleIntensity = body.styleIntensity == null || body.styleIntensity === '' ? 60 : Number(body.styleIntensity);
+
+  if (!Number.isFinite(styleIntensity) || styleIntensity < 0 || styleIntensity > 100) {
+    const error = new Error('styleIntensity must be between 0 and 100');
+    error.status = 400;
+    throw error;
+  }
+
+  if (!AI_STYLE_PRESETS.has(stylePreset)) {
+    const error = new Error(`stylePreset must be one of ${[...AI_STYLE_PRESETS].join(', ')}`);
+    error.status = 400;
+    throw error;
+  }
+
+  return {
+    autoEnhance,
+    removeBackground,
+    aiBatchEnabled,
+    skipAiProcessing,
+    styleTransferEnabled,
+    enhanceQuality,
+    stylePreset,
+    styleIntensity,
+    preview,
+  };
+}
+
+function computeAutoEnhanceTuning(stats) {
+  const channels = stats?.channels || [];
+  const red = channels[0]?.mean ?? 128;
+  const green = channels[1]?.mean ?? 128;
+  const blue = channels[2]?.mean ?? 128;
+  const avg = (red + green + blue) / 3;
+  const normalized = avg / 255;
+  const dynamicRange = ((channels[0]?.stdev ?? 32) + (channels[1]?.stdev ?? 32) + (channels[2]?.stdev ?? 32)) / 3;
+  const contrastGain = normalized < 0.45 ? 1.1 : normalized > 0.72 ? 1.03 : 1.07;
+  const brightness = normalized < 0.42 ? 1.08 : normalized > 0.8 ? 0.97 : 1.02;
+  const saturation = dynamicRange < 42 ? 1.14 : 1.08;
+  const midpointOffset = Math.round(128 - (128 * contrastGain));
+
+  return {
+    brightness,
+    saturation,
+    contrastGain,
+    midpointOffset,
+    sharpenSigma: dynamicRange < 36 ? 1.4 : 1.15,
+    sharpenFlat: dynamicRange < 36 ? 1.2 : 0.8,
+    sharpenJagged: dynamicRange < 36 ? 2.2 : 1.6,
+  };
+}
+
+async function applyAutoEnhanceBuffer(inputBuffer, { enhanceQuality = true } = {}) {
+  const stats = await sharp(inputBuffer).stats();
+  const tuning = computeAutoEnhanceTuning(stats);
+  let pipeline = sharp(inputBuffer)
+    .modulate({ brightness: tuning.brightness, saturation: tuning.saturation })
+    .linear(tuning.contrastGain, tuning.midpointOffset)
+    .sharpen(tuning.sharpenSigma, tuning.sharpenFlat, tuning.sharpenJagged);
+
+  if (enhanceQuality) {
+    pipeline = pipeline.gamma(1.04).median(1);
+  }
+
+  return {
+    buffer: await pipeline.png().toBuffer(),
+    analysis: {
+      brightness: tuning.brightness,
+      saturation: tuning.saturation,
+      contrastGain: tuning.contrastGain,
+      sharpenSigma: tuning.sharpenSigma,
+      qualityBoost: enhanceQuality,
+    },
+  };
+}
+
+function estimateBackgroundColor(data, info) {
+  const points = [
+    [0, 0],
+    [Math.max(0, info.width - 1), 0],
+    [0, Math.max(0, info.height - 1)],
+    [Math.max(0, info.width - 1), Math.max(0, info.height - 1)],
+    [Math.floor(info.width / 2), 0],
+    [Math.floor(info.width / 2), Math.max(0, info.height - 1)],
+  ];
+
+  const sums = [0, 0, 0];
+  points.forEach(([x, y]) => {
+    const index = (y * info.width + x) * info.channels;
+    sums[0] += data[index];
+    sums[1] += data[index + 1];
+    sums[2] += data[index + 2];
+  });
+
+  return sums.map((value) => value / points.length);
+}
+
+async function applyBackgroundRemovalBuffer(inputBuffer) {
+  const { data, info } = await sharp(inputBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const background = estimateBackgroundColor(data, info);
+  const alpha = Buffer.alloc(info.width * info.height);
+
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const pixelIndex = (y * info.width + x) * info.channels;
+      const maskIndex = y * info.width + x;
+      const dr = data[pixelIndex] - background[0];
+      const dg = data[pixelIndex + 1] - background[1];
+      const db = data[pixelIndex + 2] - background[2];
+      const distance = Math.sqrt((dr * dr) + (dg * dg) + (db * db));
+      const edgeBias = Math.min(x, y, info.width - x - 1, info.height - y - 1) < 8 ? 0.88 : 1;
+      alpha[maskIndex] = clamp(Math.round(((distance - 20) / 55) * 255 * edgeBias), 0, 255);
+    }
+  }
+
+  const softenedMask = await sharp(alpha, {
+    raw: { width: info.width, height: info.height, channels: 1 },
+  }).blur(1.2).png().toBuffer();
+
+  const outputBuffer = await sharp(inputBuffer)
+    .removeAlpha()
+    .joinChannel(softenedMask)
+    .png()
+    .toBuffer();
+
+  return {
+    buffer: outputBuffer,
+    analysis: {
+      backgroundColor: background.map((value) => Math.round(value)),
+      maskSoftness: 1.2,
+      threshold: 20,
+    },
+  };
+}
+
+async function blendBuffers(originalBuffer, styledBuffer, intensity = 60) {
+  const original = await sharp(originalBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const styled = await sharp(styledBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const ratio = clamp(Number(intensity) / 100, 0, 1);
+  const output = Buffer.alloc(original.data.length);
+
+  for (let index = 0; index < original.data.length; index += 1) {
+    output[index] = Math.round((original.data[index] * (1 - ratio)) + (styled.data[index] * ratio));
+  }
+
+  return sharp(output, {
+    raw: {
+      width: original.info.width,
+      height: original.info.height,
+      channels: original.info.channels,
+    },
+  }).png().toBuffer();
+}
+
+async function applyStyleTransferBuffer(inputBuffer, { stylePreset = 'vintage', styleIntensity = 60 } = {}) {
+  let styledPipeline = sharp(inputBuffer).ensureAlpha();
+
+  switch (stylePreset) {
+    case 'vintage':
+      styledPipeline = styledPipeline.modulate({ brightness: 1.04, saturation: 0.82 }).tint({ r: 214, g: 182, b: 132 }).gamma(1.08);
+      break;
+    case 'blackwhite':
+      styledPipeline = styledPipeline.grayscale().linear(1.12, -8).normalize();
+      break;
+    case 'cinematic':
+      styledPipeline = styledPipeline.modulate({ brightness: 0.98, saturation: 1.18 }).recomb([
+        [1.08, -0.03, -0.02],
+        [-0.04, 1.02, 0.05],
+        [-0.02, 0.08, 1.08],
+      ]);
+      break;
+    case 'artistic':
+      styledPipeline = styledPipeline.modulate({ brightness: 1.02, saturation: 1.32 }).sharpen(1.6, 1.1, 2.4).median(1);
+      break;
+    default:
+      break;
+  }
+
+  const styledBuffer = await styledPipeline.png().toBuffer();
+  const blended = await blendBuffers(inputBuffer, styledBuffer, styleIntensity);
+
+  return {
+    buffer: blended,
+    analysis: {
+      preset: stylePreset,
+      intensity: styleIntensity,
+    },
+  };
+}
+
+async function applyAiPipeline(inputBuffer, aiOptions = {}) {
+  let currentBuffer = inputBuffer;
+  const analysis = {};
+
+  if (aiOptions.autoEnhance && !aiOptions.skipAiProcessing) {
+    const enhanced = await applyAutoEnhanceBuffer(currentBuffer, aiOptions);
+    currentBuffer = enhanced.buffer;
+    analysis.autoEnhance = enhanced.analysis;
+  }
+
+  if (aiOptions.removeBackground && !aiOptions.skipAiProcessing) {
+    const bgRemoved = await applyBackgroundRemovalBuffer(currentBuffer);
+    currentBuffer = bgRemoved.buffer;
+    analysis.removeBackground = bgRemoved.analysis;
+  }
+
+  if (aiOptions.styleTransferEnabled && !aiOptions.skipAiProcessing) {
+    const styled = await applyStyleTransferBuffer(currentBuffer, aiOptions);
+    currentBuffer = styled.buffer;
+    analysis.styleTransfer = styled.analysis;
+  }
+
+  return { buffer: currentBuffer, analysis };
+}
+
 function getCropSpaceDimensions({ width, height, rotation = 0 }) {
   if (!width || !height) {
     const error = new Error('Unable to determine image dimensions for crop operation');
@@ -457,6 +686,7 @@ async function convertImageFile(file, targetFormat, options = {}) {
     relativePath = '',
     rotation = 0,
     crop = { top: 0, right: 0, bottom: 0, left: 0 },
+    aiOptions = {},
   } = options;
   const metadata = await createSharpPipeline(sharpInput).metadata();
   const originalWidth = metadata.width || null;
@@ -495,14 +725,20 @@ async function convertImageFile(file, targetFormat, options = {}) {
     if (width || height) {
       svgPipeline = svgPipeline.resize({ width: width || null, height: height || null, fit: 'inside', withoutEnlargement: true });
     }
-    const pngBuffer = await svgPipeline.png().toBuffer();
-    const metadata = await sharp(pngBuffer).metadata();
-    const safeWidth = metadata.width || 512;
-    const safeHeight = metadata.height || 512;
+    let pngBuffer = await svgPipeline.png().toBuffer();
+    let aiAnalysis = {};
+    if (aiOptions.autoEnhance || aiOptions.removeBackground || aiOptions.styleTransferEnabled) {
+      const processed = await applyAiPipeline(pngBuffer, aiOptions);
+      pngBuffer = processed.buffer;
+      aiAnalysis = processed.analysis;
+    }
+    const previewMetadata = await sharp(pngBuffer).metadata();
+    const safeWidth = previewMetadata.width || 512;
+    const safeHeight = previewMetadata.height || 512;
     const base64 = pngBuffer.toString('base64');
     const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">\n  <image href="data:image/png;base64,${base64}" width="${safeWidth}" height="${safeHeight}" />\n</svg>\n`;
     await fsp.writeFile(outputPath, svg, 'utf8');
-    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, convertedName, relativePath, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, preserveMetadata, originalWidth, originalHeight, metadataSummary });
+    log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, convertedName, relativePath, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, preserveMetadata, originalWidth, originalHeight, metadataSummary, aiAnalysis });
     return { outputName, convertedName, relativePath };
   }
 
@@ -543,6 +779,15 @@ async function convertImageFile(file, targetFormat, options = {}) {
     });
   }
 
+  let aiAnalysis = {};
+
+  if (aiOptions.autoEnhance || aiOptions.removeBackground || aiOptions.styleTransferEnabled) {
+    const baseBuffer = await pipeline.png().toBuffer();
+    const processed = await applyAiPipeline(baseBuffer, aiOptions);
+    pipeline = sharp(processed.buffer, { animated: true });
+    aiAnalysis = processed.analysis;
+  }
+
   switch (format) {
     case 'jpg':
       pipeline = pipeline.jpeg({ quality: quality ?? 90 });
@@ -574,7 +819,7 @@ async function convertImageFile(file, targetFormat, options = {}) {
       throw new Error(`Unsupported conversion pipeline for format: ${format}`);
   }
 
-  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, convertedName, relativePath, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, preserveMetadata, originalWidth, originalHeight, metadataSummary });
+  log('Image conversion completed', { originalName: file.originalname, detectedFormat, targetFormat: format, outputName, convertedName, relativePath, usedBmpFallback, quality, width, height, keepAspectRatio, stripMetadata, preserveMetadata, originalWidth, originalHeight, metadataSummary, aiAnalysis });
   return { outputName, convertedName, relativePath };
 }
 
@@ -586,6 +831,7 @@ app.post('/api/convert', upload.single('image'), async (req, res, next) => {
 
     const targetFormat = normalizeFormat(req.body.targetFormat);
     const options = parseConvertOptions(req.body, targetFormat);
+    const aiOptions = parseAiOptions(req.body);
     log('Convert request received', {
       input: req.file.originalname,
       targetFormat,
@@ -603,7 +849,7 @@ app.post('/api/convert', upload.single('image'), async (req, res, next) => {
       crop: options.crop,
     });
 
-    const { outputName, convertedName, relativePath } = await convertImageFile(req.file, targetFormat, options);
+    const { outputName, convertedName, relativePath } = await convertImageFile(req.file, targetFormat, { ...options, aiOptions });
     const outputPath = path.join(CONVERTED_DIR, outputName);
     const outputStats = await fsp.stat(outputPath);
     const convertedUrl = `${getBaseUrl(req)}/converted/${outputName}`;
@@ -631,8 +877,9 @@ app.post('/api/convert/batch', upload.any(), async (req, res, next) => {
 
     const targetFormat = normalizeFormat(req.body.targetFormat);
     const options = parseConvertOptions(req.body, targetFormat);
+    const aiOptions = parseAiOptions(req.body);
     const outputFiles = await Promise.all(
-      files.map((file, index) => convertImageFile(file, targetFormat, { ...options, sequence: index + 1, relativePath: file.originalname }))
+      files.map((file, index) => convertImageFile(file, targetFormat, { ...options, sequence: index + 1, relativePath: file.originalname, aiOptions }))
     );
 
     const convertedUrls = outputFiles.map(({ outputName }) => `${getBaseUrl(req)}/converted/${outputName}`);
@@ -664,6 +911,50 @@ app.post('/api/convert/batch', upload.any(), async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+async function handleAiPreview(req, res, next, transform) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Missing image file in field "image"' });
+    }
+
+    const { sharpInput } = await loadImagePipelineSource(req.file);
+    const sourceBuffer = await createSharpPipeline(sharpInput).png().toBuffer();
+    const aiOptions = parseAiOptions(req.body);
+    const processed = await transform(sourceBuffer, aiOptions);
+    const previewBuffer = await sharp(processed.buffer).png().toBuffer();
+
+    if (aiOptions.preview) {
+      return res.json({
+        previewDataUrl: `data:image/png;base64,${previewBuffer.toString('base64')}`,
+        analysis: processed.analysis,
+      });
+    }
+
+    const outputName = makeFileName(req.file.originalname, 'png');
+    await fsp.writeFile(path.join(CONVERTED_DIR, outputName), previewBuffer);
+
+    return res.json({
+      convertedUrl: `${getBaseUrl(req)}/converted/${outputName}`,
+      convertedName: `${path.parse(req.file.originalname).name}.png`,
+      analysis: processed.analysis,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+app.post('/api/auto-enhance', upload.single('image'), async (req, res, next) => {
+  handleAiPreview(req, res, next, (buffer, aiOptions) => applyAutoEnhanceBuffer(buffer, aiOptions));
+});
+
+app.post('/api/remove-background', upload.single('image'), async (req, res, next) => {
+  handleAiPreview(req, res, next, (buffer) => applyBackgroundRemovalBuffer(buffer));
+});
+
+app.post('/api/style-transfer', upload.single('image'), async (req, res, next) => {
+  handleAiPreview(req, res, next, (buffer, aiOptions) => applyStyleTransferBuffer(buffer, aiOptions));
 });
 
 app.post('/api/temp/clear', async (_req, res, next) => {

@@ -41,16 +41,14 @@ export function MenuBar({ activePanel, onSelectPanel, collapsed = false, onToggl
                 key={item.id}
                 type="button"
                 onClick={() => onSelectPanel(item.id)}
-                className={`menu-item ${isAiLab ? 'menu-item--featured' : ''} ${isActive ? 'active' : ''}`.trim()}
+                className={`menu-item ${isActive ? 'active' : ''}`.trim()}
                 aria-pressed={isActive}
                 title={isAiLab ? `${item.name} · On-device image intelligence` : item.name}
               >
                 <span className="menu-item__icon" aria-hidden="true">{item.icon}</span>
                 <span className="menu-item__copy">
                   <span className="menu-item__label">{item.name}</span>
-                  {isAiLab ? <span className="menu-item__meta">Lab mode</span> : null}
                 </span>
-                {isAiLab ? <span className="menu-item__signal" aria-hidden="true">◌</span> : null}
               </button>
             );
           })}

@@ -3,6 +3,7 @@ const SHORTCUT_GROUPS = [
     title: 'General',
     shortcuts: [
       { keys: ['?', 'Ctrl/Cmd + K'], description: 'Open keyboard shortcuts' },
+      { keys: ['Ctrl/Cmd + L'], description: 'Open Gamification Lab' },
       { keys: ['Esc'], description: 'Close open modal or panel' },
     ],
   },
@@ -11,12 +12,13 @@ const SHORTCUT_GROUPS = [
     shortcuts: [
       { keys: ['1'], description: 'Toggle Upload / Settings panel' },
       { keys: ['2'], description: 'Toggle Format / Quality panel' },
-      { keys: ['3'], description: 'Toggle Size panel' },
+      { keys: ['3'], description: 'Toggle Size / Gamification Lab panel' },
       { keys: ['4'], description: 'Toggle Quality / Queue panel' },
       { keys: ['5'], description: 'Toggle Queue / Privacy panel' },
       { keys: ['6'], description: 'Toggle Privacy / Filename panel' },
       { keys: ['7'], description: 'Toggle Filename / Progress panel' },
       { keys: ['8'], description: 'Toggle Progress / Advanced panel' },
+      { keys: ['9'], description: 'Toggle Progress panel' },
     ],
   },
 ];

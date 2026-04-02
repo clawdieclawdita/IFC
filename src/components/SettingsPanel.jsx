@@ -1,10 +1,10 @@
 import { FilenamePanel } from './FilenamePanel';
 import { AiLabPanel } from './AiLabPanel';
-import { GamificationLabPanel } from './GamificationLabPanel';
 import { MENU_ITEMS } from './MenuBar';
 import { PrivacyPanel } from './PrivacyPanel';
 import { QualityPanel } from './QualityPanel';
 import { SizePanel } from './SizePanel';
+import { GamificationLabPanel } from './GamificationLabPanel';
 
 const PANEL_COPY = {
   queue: 'Queue controls are reserved for upcoming batching features.',
@@ -12,6 +12,7 @@ const PANEL_COPY = {
   progress: 'Detailed progress controls are planned for a future phase.',
   advanced: 'Advanced conversion controls are planned for a future phase.',
   pwa: 'Install and offline options are planned for a future phase.',
+  gamification: '',
 };
 
 function AppearancePanel({ settings, onChange, onOpenKeyboardShortcuts }) {
@@ -63,7 +64,7 @@ function AppearancePanel({ settings, onChange, onOpenKeyboardShortcuts }) {
   );
 }
 
-export function SettingsPanel({ activePanel, onClose, settings, onChange, onOpenKeyboardShortcuts, aiState, onAiChange, onAiUndo, onAiRedo, canAiUndo, canAiRedo, files, aiSkipMap, onToggleAiSkip, leaderboard, onShareAchievement, gamificationLab }) {
+export function SettingsPanel({ activePanel, onClose, settings, onChange, onOpenKeyboardShortcuts, aiState, onAiChange, onAiUndo, onAiRedo, canAiUndo, canAiRedo, files, aiSkipMap, onToggleAiSkip, leaderboard, onShareAchievement, leaderboardPeriod, onLeaderboardPeriodChange, moments, celebrationSoundEnabled, onToggleSound, onReplayMoment, xpMultiplierActive, xpMultiplierRemainingLabel, streakSaveArmed, achievementBoost, onActivateXpMultiplier, onArmStreakSave, onToggleAchievementBoost }) {
   const activeItem = MENU_ITEMS.find((item) => item.id === activePanel);
 
   const renderContent = () => {
@@ -89,10 +90,6 @@ export function SettingsPanel({ activePanel, onClose, settings, onChange, onOpen
       );
     }
 
-    if (activePanel === 'gamification') {
-      return <GamificationLabPanel {...gamificationLab} />;
-    }
-
     if (activePanel === 'quality') {
       return <QualityPanel settings={settings} onChange={onChange} />;
     }
@@ -107,6 +104,25 @@ export function SettingsPanel({ activePanel, onClose, settings, onChange, onOpen
 
     if (activePanel === 'filename') {
       return <FilenamePanel settings={settings} onChange={onChange} />;
+    }
+
+    if (activePanel === 'gamification') {
+      return <GamificationLabPanel
+        period={leaderboardPeriod}
+        onPeriodChange={onLeaderboardPeriodChange}
+        leaderboard={leaderboard}
+        moments={moments}
+        celebrationSoundEnabled={celebrationSoundEnabled}
+        onToggleSound={onToggleSound}
+        onReplayMoment={onReplayMoment}
+        xpMultiplierActive={xpMultiplierActive}
+        xpMultiplierRemainingLabel={xpMultiplierRemainingLabel}
+        streakSaveArmed={streakSaveArmed}
+        achievementBoost={achievementBoost}
+        onActivateXpMultiplier={onActivateXpMultiplier}
+        onArmStreakSave={onArmStreakSave}
+        onToggleAchievementBoost={onToggleAchievementBoost}
+      />;
     }
 
     return (
@@ -124,7 +140,7 @@ export function SettingsPanel({ activePanel, onClose, settings, onChange, onOpen
       <div className="settings-panel__backdrop" onClick={onClose} aria-hidden={!activePanel} />
 
       <section
-        className="settings-panel__dialog"
+        className={`settings-panel__dialog ${activePanel ? `settings-panel__dialog--${activePanel}` : ''}`.trim()}
         role="dialog"
         aria-modal="false"
         aria-labelledby="settings-panel-title"
@@ -134,7 +150,6 @@ export function SettingsPanel({ activePanel, onClose, settings, onChange, onOpen
         </button>
 
         <div className="panel-content">
-          <p className="settings-panel__eyebrow">Phase 8B controls</p>
           <h2 id="settings-panel-title">
             {activeItem ? `${activeItem.icon} ${activeItem.name}` : 'Feature panel'}
           </h2>
